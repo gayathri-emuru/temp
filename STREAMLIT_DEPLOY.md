@@ -43,3 +43,4 @@ Streamlit secrets protect API keys, but files committed to a public repo are pub
 The hosted Streamlit app is locked to `emurugayathri@gmail.com` for real sends.
 It always attaches `resumes/Gayathri_Resume.pdf`; if that file is missing, sending fails.
 The Inbox Monitor tab also scans only `emurugayathri@gmail.com` and requires the same Gmail app password/IMAP access.
+The LinkedIn post flow is staged: extract posts, edit/delete/include rows, create a review batch, generate drafts, edit subject/body, then send checked emails.

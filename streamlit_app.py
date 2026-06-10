@@ -103,7 +103,7 @@ def _bootstrap_hosted_database() -> None:
 
 _setup_django()
 
-from core.models import GeneratedEmail  # noqa: E402
+from core.models import GeneratedEmail, JobPosting, SentEmailLog  # noqa: E402
 from core.services.email_ai_settings_service import get_email_ai_generation_settings  # noqa: E402
 from core.services.email_composition_service import build_full_email_body  # noqa: E402
 from core.services.email_sending_control_service import get_email_sending_state  # noqa: E402
@@ -119,6 +119,7 @@ from core.services.linkedin_post_outreach_service import (  # noqa: E402
     run_linkedin_post_outreach,
 )
 from core.services.manual_job_email_service import (  # noqa: E402
+    TOKEN_PREFIX,
     build_manual_job_email_review_context,
     create_manual_job_email_batch,
     run_manual_job_email_generation_for_token,
@@ -165,6 +166,64 @@ def _make_manual_rows(row_count: int) -> tuple[list[str], list[str], list[str]]:
         emails.append(safe_str(st.session_state.get(f"manual_email_{index}", "")).strip())
         job_texts.append(safe_str(st.session_state.get(f"manual_text_{index}", "")).strip())
     return names, emails, job_texts
+
+
+def _extraction_editor_rows(rows: list[dict]) -> list[dict]:
+    editor_rows = []
+    for index, row in enumerate(rows):
+        editor_rows.append(
+            {
+                "include": bool(row.get("include_by_default", row.get("ready_for_review", True))),
+                "poster_name": safe_str(row.get("poster_name")).strip(),
+                "email": safe_str(row.get("email")).strip().lower(),
+                "company": safe_str(row.get("company")).strip(),
+                "role": safe_str(row.get("role")).strip(),
+                "location": safe_str(row.get("location")).strip(),
+                "post_text": safe_str(row.get("post_text")).strip(),
+                "manual_notes": safe_str(row.get("manual_notes")).strip(),
+                "job_url": safe_str(row.get("job_url")).strip(),
+                "poster_linkedin_url": safe_str(row.get("poster_linkedin_url")).strip(),
+                "url": safe_str(row.get("canonical_url") or row.get("url")).strip(),
+                "status": safe_str(row.get("status")).strip(),
+                "apollo_status": safe_str(row.get("apollo_status")).strip(),
+                "apollo_reason": safe_str(row.get("apollo_reason")).strip(),
+            }
+        )
+    return editor_rows
+
+
+def _rows_from_editor(edited_rows: list[dict]) -> list[dict]:
+    rows = []
+    for index, row in enumerate(edited_rows):
+        out = dict(row)
+        out["row_number"] = index + 1
+        out["review_index"] = index
+        out["include"] = bool(out.get("include"))
+        out["canonical_url"] = safe_str(out.get("url")).strip()
+        rows.append(out)
+    return rows
+
+
+def _delete_review_batch(token: str) -> dict:
+    token = safe_str(token).strip()
+    if not token:
+        raise RuntimeError("Review token is required.")
+
+    jobs = JobPosting.objects.filter(external_job_id__startswith=f"{TOKEN_PREFIX}-{token}-")
+    job_ids = list(jobs.values_list("id", flat=True))
+    if not job_ids:
+        return {"deleted": 0, "token": token}
+
+    sent_count = SentEmailLog.objects.filter(
+        job_posting_id__in=job_ids,
+        send_type=SentEmailLog.SendType.REAL,
+        status=SentEmailLog.SendStatus.SENT,
+    ).count()
+    if sent_count:
+        raise RuntimeError("This batch has sent emails, so it cannot be deleted from the Streamlit app.")
+
+    deleted, _ = jobs.delete()
+    return {"deleted": deleted, "token": token}
 
 
 def _render_status_bar() -> None:
@@ -304,23 +363,18 @@ def _render_create_batch() -> None:
         col_a, col_b, col_c = st.columns([1, 1, 2])
         find_emails = col_a.checkbox("Find emails", value=True)
         ai_extract = col_b.checkbox("AI extract details", value=True)
-        if col_c.button("Extract and Create Batch", type="primary", use_container_width=True):
+        if col_c.button("Extract Posts", type="primary", use_container_width=True):
             try:
                 result = run_linkedin_post_outreach(
                     raw_urls_text=urls,
                     find_emails=find_emails,
-                    create_review_batch=True,
+                    create_review_batch=False,
                     ai_extract_details=ai_extract,
                 )
-                batch = result.get("review_batch") or {}
                 st.session_state["latest_extract_result"] = result
-                if batch.get("ok") is False:
-                    _error(batch.get("error") or "No review batch was created.")
-                else:
-                    token = safe_str(batch.get("token")).strip()
-                    st.session_state["active_token"] = token
-                    _success(f"Created review batch {token}. Generate drafts next.")
-                    st.rerun()
+                st.session_state["extraction_editor_rows"] = _extraction_editor_rows(result.get("rows") or [])
+                _success("Extraction finished. Review and edit the rows below.")
+                st.rerun()
             except Exception as exc:
                 _error(str(exc))
                 st.rerun()
@@ -333,8 +387,59 @@ def _render_create_batch() -> None:
                 f"found {totals.get('emails_found', 0)} email(s), "
                 f"Apollo credits {totals.get('apollo_credits', 0)}."
             )
-            with st.expander("Extraction rows"):
-                st.dataframe(result.get("rows") or [], use_container_width=True)
+            st.markdown("**Review Extracted Rows**")
+            st.caption("Edit missing names, emails, company, role, notes, and include only the rows you want. You can delete rows directly from the table.")
+            edited_rows = st.data_editor(
+                st.session_state.get("extraction_editor_rows") or _extraction_editor_rows(result.get("rows") or []),
+                key="extraction_editor",
+                use_container_width=True,
+                num_rows="dynamic",
+                hide_index=True,
+                column_config={
+                    "include": st.column_config.CheckboxColumn("Include"),
+                    "poster_name": st.column_config.TextColumn("Recipient name", required=False),
+                    "email": st.column_config.TextColumn("Recipient email", required=False),
+                    "company": st.column_config.TextColumn("Company"),
+                    "role": st.column_config.TextColumn("Role"),
+                    "post_text": st.column_config.TextColumn("Post/context", width="large"),
+                    "manual_notes": st.column_config.TextColumn("Manual notes", width="large"),
+                    "url": st.column_config.LinkColumn("Post URL"),
+                    "job_url": st.column_config.LinkColumn("Job URL"),
+                    "poster_linkedin_url": st.column_config.LinkColumn("Poster LinkedIn"),
+                },
+                disabled=["status", "apollo_status", "apollo_reason"],
+            )
+            st.session_state["extraction_editor_rows"] = edited_rows
+
+            c1, c2, c3 = st.columns([1.3, 1.3, 1])
+            generate_now = c1.checkbox("Generate drafts after creating batch", value=True)
+            if c2.button("Create Review Batch From Edited Rows", type="primary", use_container_width=True):
+                try:
+                    rows = _rows_from_editor(edited_rows)
+                    batch = create_linkedin_post_review_batch_from_rows(rows)
+                    if batch.get("ok") is False:
+                        _error(batch.get("error") or "No selected rows have name, email, and post context.")
+                        st.session_state["latest_batch_result"] = batch
+                        st.rerun()
+                    token = safe_str(batch.get("token")).strip()
+                    st.session_state["active_token"] = token
+                    st.session_state["latest_batch_result"] = batch
+                    if generate_now:
+                        run_manual_job_email_generation_for_token(token=token, skip_existing=False)
+                    _success(f"Created review batch {token}.")
+                    st.rerun()
+                except Exception as exc:
+                    _error(str(exc))
+                    st.rerun()
+            if c3.button("Clear / Redo Extraction", use_container_width=True):
+                st.session_state.pop("latest_extract_result", None)
+                st.session_state.pop("extraction_editor_rows", None)
+                st.rerun()
+
+            batch_result = st.session_state.get("latest_batch_result")
+            if batch_result and batch_result.get("ok") is False:
+                with st.expander("Rows skipped by batch creation", expanded=True):
+                    st.json(batch_result)
         return
 
     row_count = st.number_input("Rows", min_value=1, max_value=20, value=1, step=1)
@@ -408,10 +513,24 @@ def _render_review_batch(token: str) -> None:
             _error(str(exc))
             st.rerun()
 
-    if st.button("Regenerate All Drafts", type="secondary"):
+    action_a, action_b, action_c = st.columns([1, 1, 2])
+    if action_a.button("Regenerate All Drafts", type="secondary", use_container_width=True):
         try:
             result = run_manual_job_email_generation_for_token(token=token, skip_existing=False)
             _success(f"Regenerated {result.get('totals', {}).get('generated', 0)} draft(s).")
+            st.rerun()
+        except Exception as exc:
+            _error(str(exc))
+            st.rerun()
+    if action_b.button("Back To Extracted Rows", use_container_width=True):
+        st.session_state["active_token"] = ""
+        st.rerun()
+    delete_confirm = action_c.checkbox("Allow delete unsent batch")
+    if delete_confirm and action_c.button("Delete This Unsent Batch", type="secondary", use_container_width=True):
+        try:
+            result = _delete_review_batch(token)
+            st.session_state["active_token"] = ""
+            _success(f"Deleted batch {token} ({result.get('deleted', 0)} database rows).")
             st.rerun()
         except Exception as exc:
             _error(str(exc))
