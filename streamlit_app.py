@@ -152,6 +152,7 @@ from core.services.manual_job_email_service import (  # noqa: E402
     send_manual_job_email_batch,
     update_manual_job_email_recipient,
 )
+from core.services.sender_account_service import sender_availability_summary  # noqa: E402
 from core.utils import safe_str  # noqa: E402
 
 
@@ -299,6 +300,21 @@ def _render_status_bar() -> None:
         st.error("Anthropic is selected for email writing, but ANTHROPIC_API_KEY is missing from Streamlit secrets.")
     if ai.get("provider") == "openai" and not ai.get("openai_configured"):
         st.error("OpenAI is selected for email writing, but OPENAI_API_KEY is missing from Streamlit secrets.")
+    sender_password_present = bool(
+        safe_str(os.getenv("SENDER_APP_PASSWORD")).strip()
+        or safe_str(os.getenv("GMAIL_APP_PASSWORD")).strip()
+        or safe_str(os.getenv("EMAIL_APP_PASSWORD")).strip()
+    )
+    sender_summary = sender_availability_summary()
+    if not sender_password_present:
+        st.error("SENDER_APP_PASSWORD is missing from Streamlit secrets, so the app cannot create/use the Gmail sender account.")
+    elif int(sender_summary.get("active_total") or 0) <= 0:
+        st.error(f"No active sender account exists for {STREAMLIT_ONLY_SENDER_EMAIL}. Reboot the app after saving SENDER_APP_PASSWORD.")
+    elif int(sender_summary.get("available_count") or 0) <= 0:
+        st.warning(
+            f"Sender {STREAMLIT_ONLY_SENDER_EMAIL} exists but is not currently available. "
+            f"Quota/gap blocks: quota={sender_summary.get('blocked_by_quota', 0)}, gap={sender_summary.get('blocked_by_gap', 0)}."
+        )
 
 
 def _status_label(status: str) -> str:
@@ -700,7 +716,7 @@ def _render_review_batch(token: str) -> None:
                 st.warning("Generate a draft and confirm recipient details before sending.")
 
     st.divider()
-    send_delay = st.number_input("Delay seconds between sends", min_value=0, max_value=3600, value=300, step=30)
+    send_delay = st.number_input("Delay seconds between sends", min_value=0, max_value=3600, value=0, step=30)
     confirm_send = st.checkbox("I reviewed the selected edited drafts and want to send real emails.")
     if st.button("Send Checked Emails", type="primary", disabled=not selected_job_ids or not confirm_send):
         try:

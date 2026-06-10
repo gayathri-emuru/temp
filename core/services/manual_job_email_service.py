@@ -938,7 +938,7 @@ def send_manual_job_email_batch(*, token: str, job_ids: list[int], delay_seconds
     seen_this_run: set[str] = set()
     stopped = False
 
-    for job in jobs:
+    for job_index, job in enumerate(jobs):
         target = job.targets.filter(is_selected_for_job=True).select_related("company_recruiter").order_by("id").first()
         if not target:
             rows.append({"job_id": job.id, "status": "skipped", "detail": "missing_selected_target"})
@@ -1059,7 +1059,8 @@ def send_manual_job_email_batch(*, token: str, job_ids: list[int], delay_seconds
             rows.append({"job_id": job.id, "email": email, "name": name, "status": "failed", "sender": sender.email, "detail": error_text[:1000]})
             append_exception(run_log_path, f"SEND_FAIL job_id={job.id} to={email} log_id={log_row.id}", exc)
 
-        if delay_seconds and not _sleep_between_sends(delay_seconds, send_run=send_run, run_log_path=run_log_path):
+        is_last_selected_job = job_index >= len(jobs) - 1
+        if delay_seconds and not is_last_selected_job and not _sleep_between_sends(delay_seconds, send_run=send_run, run_log_path=run_log_path):
             totals["stopped"] = 1
             stopped = True
             break
