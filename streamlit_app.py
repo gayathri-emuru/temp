@@ -5,6 +5,11 @@ from pathlib import Path
 
 import streamlit as st
 
+try:
+    from streamlit_autorefresh import st_autorefresh
+except Exception:  # pragma: no cover - optional Streamlit runtime dependency
+    st_autorefresh = None
+
 
 BASE_DIR = Path(__file__).resolve().parent
 STREAMLIT_ONLY_SENDER_EMAIL = "emurugayathri@gmail.com"
@@ -334,7 +339,7 @@ def _status_label(status: str) -> str:
 
 def _render_inbox_monitor() -> None:
     st.subheader("Inbox Monitor")
-    st.caption("Scan the remote sender inbox, store reply/bounce events, and review latest activity.")
+    st.caption("Scans every sender inbox with an app password, regardless of active or paused status, and refreshes every minute.")
 
     context = build_inbox_monitor_context()
     c1, c2, c3 = st.columns([1, 1, 2])
@@ -346,16 +351,34 @@ def _render_inbox_monitor() -> None:
         step=25,
     )
     store_events = c2.checkbox("Scan + store", value=True)
-    c3.metric("Active inboxes", context.get("active_account_count", 0))
+    c3.metric("Sender inboxes", context.get("monitorable_account_count", context.get("active_account_count", 0)))
+
+    refresh_count = None
+    if st_autorefresh:
+        refresh_count = st_autorefresh(interval=int(context.get("default_poll_seconds", 60)) * 1000, key="inbox_monitor_autorefresh")
+    else:
+        st.caption("Install streamlit-autorefresh to enable automatic one-minute refreshes in Streamlit.")
+
+    def run_scan() -> dict:
+        return (
+            scan_and_store_inbox_events(max_messages=int(max_messages))
+            if store_events
+            else scan_inbox_monitor(max_messages=int(max_messages))
+        )
+
+    if refresh_count is not None and st.session_state.get("latest_inbox_refresh_count") != refresh_count:
+        try:
+            with st.spinner("Refreshing inboxes..."):
+                st.session_state["latest_inbox_result"] = run_scan()
+            st.session_state["latest_inbox_refresh_count"] = refresh_count
+        except Exception as exc:
+            _error(str(exc))
+            st.session_state["latest_inbox_refresh_count"] = refresh_count
 
     if st.button("Scan Now", type="primary"):
         try:
             with st.spinner("Scanning inbox..."):
-                result = (
-                    scan_and_store_inbox_events(max_messages=int(max_messages))
-                    if store_events
-                    else scan_inbox_monitor(max_messages=int(max_messages))
-                )
+                result = run_scan()
             st.session_state["latest_inbox_result"] = result
             _success("Inbox scan finished.")
             st.rerun()
@@ -390,7 +413,7 @@ def _render_inbox_monitor() -> None:
         st.markdown("**Mailbox Health**")
         accounts = result.get("accounts") or []
         if not accounts:
-            st.warning("No active sender inbox found. Add `SENDER_APP_PASSWORD` in Streamlit secrets.")
+            st.warning("No sender inbox with an app password was found.")
         for account in accounts:
             with st.container(border=True):
                 st.markdown(f"**{account.get('account', '')}**")

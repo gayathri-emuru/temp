@@ -74,7 +74,7 @@
     <div>
         <h1>Inbox Monitor</h1>
         <div class="subtle">
-            Monitor all active sender inboxes from one page. Blocking warnings are separated from normal bounces and replies.
+            Monitor every sender inbox with an app password from one page. Active, paused, resting, and quarantined senders are all included.
         </div>
     </div>
     <div class="actions">
@@ -115,7 +115,7 @@
         <button id="applyLimitButton" class="secondary" type="button">Submit</button>
     </div>
     <div id="statusLine" class="status-line">
-        Ready. {{ active_account_count }} active sender inbox{{ active_account_count|pluralize:"es" }} configured.
+        Ready. {{ monitorable_account_count }} sender inbox{{ monitorable_account_count|pluralize:"es" }} with app passwords configured.
     </div>
 </div>
 
@@ -188,7 +188,7 @@
 
     function renderAccounts(accounts) {
         if (!accounts.length) {
-            accountList.innerHTML = '<div class="empty">No active sender accounts found.</div>';
+            accountList.innerHTML = '<div class="empty">No sender accounts with app passwords found.</div>';
             return;
         }
         accountList.innerHTML = accounts.map(row => {

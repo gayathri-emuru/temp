@@ -7,3 +7,4 @@ rapidfuzz
 whitenoise
 gunicorn
 streamlit
+streamlit-autorefresh

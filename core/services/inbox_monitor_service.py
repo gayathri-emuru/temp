@@ -13,12 +13,11 @@ from django.utils import timezone
 from core.models import InboxScanEvent, SenderAccount, SentEmailLog
 from core.services.email_suppression_service import suppress_if_hard_bounce
 from core.services.live_company_reply_service import record_reply_stop_for_event
-from core.services.sender_account_service import only_sender_email
 from core.services.smtp_send_service import imap_host_for_email
 from core.utils import safe_str
 
 
-DEFAULT_INBOX_MONITOR_MAX_MESSAGES = 100
+DEFAULT_INBOX_MONITOR_MAX_MESSAGES = 300
 
 BLOCK_WARNING_PHRASES = [
     "message blocked",
@@ -234,14 +233,19 @@ def _scan_account(sender: SenderAccount, *, max_messages: int, timeout_seconds: 
                 pass
 
 
+def _monitorable_sender_accounts():
+    return (
+        SenderAccount.objects.exclude(app_password="")
+        .exclude(app_password__isnull=True)
+        .order_by("email")
+    )
+
+
 def build_inbox_monitor_context() -> dict:
-    qs = SenderAccount.objects.filter(is_active=True)
-    sender_email = only_sender_email()
-    if sender_email:
-        qs = qs.filter(email__iexact=sender_email)
-    active_accounts = qs.count()
+    monitorable_accounts = _monitorable_sender_accounts().count()
     return {
-        "active_account_count": active_accounts,
+        "active_account_count": monitorable_accounts,
+        "monitorable_account_count": monitorable_accounts,
         "default_poll_seconds": 60,
         "default_max_messages": DEFAULT_INBOX_MONITOR_MAX_MESSAGES,
     }
@@ -263,11 +267,7 @@ def _sort_messages_newest_first(messages: list[dict]) -> list[dict]:
 
 def scan_inbox_monitor(*, max_messages: int = DEFAULT_INBOX_MONITOR_MAX_MESSAGES) -> dict:
     requested_max_messages = max(1, int(max_messages))
-    qs = SenderAccount.objects.filter(is_active=True)
-    sender_email = only_sender_email()
-    if sender_email:
-        qs = qs.filter(email__iexact=sender_email)
-    accounts = list(qs.order_by("email"))
+    accounts = list(_monitorable_sender_accounts())
     started = timezone.now()
     rows = []
     max_workers = min(32, max(1, len(accounts)))
@@ -332,7 +332,7 @@ def scan_and_store_inbox_events(*, max_messages: int = DEFAULT_INBOX_MONITOR_MAX
     suppressed = 0
     matched = 0
     reply_stops = 0
-    accounts = {account.email.lower(): account for account in SenderAccount.objects.filter(is_active=True)}
+    accounts = {account.email.lower(): account for account in _monitorable_sender_accounts()}
 
     for message in result.get("messages", []):
         account = accounts.get(safe_str(message.get("account")).lower())
