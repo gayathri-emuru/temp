@@ -72,6 +72,7 @@ def _bootstrap_hosted_database() -> None:
     provider = (
         os.getenv("EMAIL_AI_PROVIDER", "").strip().lower()
         or os.getenv("EMAIL_GENERATION_PROVIDER", "").strip().lower()
+        or "anthropic"
     )
     if provider in {"openai", "anthropic"} and setting.email_generation_provider != provider:
         setting.email_generation_provider = provider
@@ -294,6 +295,10 @@ def _render_status_bar() -> None:
     cols[3].metric("Sending", "ON" if sending.get("effective_enabled") else "OFF")
     st.caption(f"Real sends from this Streamlit app are limited to {STREAMLIT_ONLY_SENDER_EMAIL}.")
     st.caption("Resume attachment is required for sends.")
+    if ai.get("provider") == "anthropic" and not ai.get("anthropic_configured"):
+        st.error("Anthropic is selected for email writing, but ANTHROPIC_API_KEY is missing from Streamlit secrets.")
+    if ai.get("provider") == "openai" and not ai.get("openai_configured"):
+        st.error("OpenAI is selected for email writing, but OPENAI_API_KEY is missing from Streamlit secrets.")
 
 
 def _status_label(status: str) -> str:
