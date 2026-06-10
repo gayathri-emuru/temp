@@ -179,7 +179,11 @@ def _show_last_message() -> None:
 
 def _save_generated_email(job_id: int, subject: str, body: str) -> None:
     generated = GeneratedEmail.objects.select_related("job_posting").get(job_posting_id=int(job_id))
-    generated.subject = safe_str(subject).strip()[:500]
+    subject = safe_str(subject).strip()
+    if not subject:
+        title = safe_str(getattr(generated.job_posting, "title", "")).strip() or "role"
+        subject = f"{title[:80]} role"
+    generated.subject = subject[:500]
     generated.body = safe_str(body).strip()
     generated.edited_manually = True
     generated.generation_status = GeneratedEmail.GenerationStatus.GENERATED

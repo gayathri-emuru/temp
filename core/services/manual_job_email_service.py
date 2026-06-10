@@ -257,7 +257,7 @@ def _repair_manual_job_subject_if_needed(job: JobPosting, generated: GeneratedEm
         return ""
 
     current = safe_str(generated.subject).strip()
-    if generated.edited_manually:
+    if generated.edited_manually and current:
         return current
 
     _repair_manual_job_title_if_needed(job)
