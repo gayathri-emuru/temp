@@ -16,6 +16,12 @@ def _apply_streamlit_secrets_to_env() -> None:
         "SECRET_KEY",
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
+        "EMAIL_AI_PROVIDER",
+        "EMAIL_GENERATION_PROVIDER",
+        "OPENAI_COLD_EMAIL_MODEL",
+        "OPENAI_EMAIL_MODEL",
+        "ANTHROPIC_COLD_EMAIL_MODEL",
+        "ANTHROPIC_EMAIL_MODEL",
         "APIFY_API_KEY",
         "APOLLO_API_KEY",
         "EMAIL_SENDING_ENABLED",
@@ -61,7 +67,26 @@ def _bootstrap_hosted_database() -> None:
 
     from core.models import AppSetting, SenderAccount
 
-    AppSetting.get_solo()
+    setting = AppSetting.get_solo()
+    setting_changed = []
+    provider = (
+        os.getenv("EMAIL_AI_PROVIDER", "").strip().lower()
+        or os.getenv("EMAIL_GENERATION_PROVIDER", "").strip().lower()
+    )
+    if provider in {"openai", "anthropic"} and setting.email_generation_provider != provider:
+        setting.email_generation_provider = provider
+        setting_changed.append("email_generation_provider")
+    openai_model = os.getenv("OPENAI_EMAIL_MODEL", "").strip() or os.getenv("OPENAI_COLD_EMAIL_MODEL", "").strip()
+    if openai_model and setting.openai_email_model != openai_model:
+        setting.openai_email_model = openai_model[:120]
+        setting_changed.append("openai_email_model")
+    anthropic_model = os.getenv("ANTHROPIC_EMAIL_MODEL", "").strip() or os.getenv("ANTHROPIC_COLD_EMAIL_MODEL", "").strip()
+    if anthropic_model and setting.anthropic_email_model != anthropic_model:
+        setting.anthropic_email_model = anthropic_model[:120]
+        setting_changed.append("anthropic_email_model")
+    if setting_changed:
+        setting.save(update_fields=setting_changed)
+
     sender_email = os.getenv("SENDER_EMAIL", STREAMLIT_ONLY_SENDER_EMAIL).strip().lower()
     app_password = (
         os.getenv("SENDER_APP_PASSWORD", "").strip()
@@ -224,6 +249,39 @@ def _delete_review_batch(token: str) -> dict:
 
     deleted, _ = jobs.delete()
     return {"deleted": deleted, "token": token}
+
+
+def _generate_drafts(token: str, *, skip_existing: bool) -> dict:
+    result = run_manual_job_email_generation_for_token(token=token, skip_existing=skip_existing)
+    st.session_state["latest_generation_result"] = result
+    return result
+
+
+def _generation_summary_text(result: dict) -> str:
+    totals = result.get("totals") or {}
+    return (
+        f"Provider: {totals.get('provider', '-')} | Model: {totals.get('model', '-')} | "
+        f"Generated: {totals.get('generated', 0)} | "
+        f"Skipped existing: {totals.get('skipped_existing', 0)} | "
+        f"Errors: {totals.get('generation_errors', 0)}"
+    )
+
+
+def _render_generation_result() -> None:
+    result = st.session_state.get("latest_generation_result")
+    if not result:
+        return
+    totals = result.get("totals") or {}
+    error_count = int(totals.get("generation_errors") or 0)
+    generated_count = int(totals.get("generated") or 0)
+    if error_count:
+        st.error(_generation_summary_text(result))
+    elif generated_count:
+        st.success(_generation_summary_text(result))
+    else:
+        st.warning(_generation_summary_text(result))
+    with st.expander("Draft generation details"):
+        st.json(result)
 
 
 def _render_status_bar() -> None:
@@ -424,9 +482,15 @@ def _render_create_batch() -> None:
                     token = safe_str(batch.get("token")).strip()
                     st.session_state["active_token"] = token
                     st.session_state["latest_batch_result"] = batch
+                    message = f"Created review batch {token}."
                     if generate_now:
-                        run_manual_job_email_generation_for_token(token=token, skip_existing=False)
-                    _success(f"Created review batch {token}.")
+                        generation_result = _generate_drafts(token, skip_existing=False)
+                        totals = generation_result.get("totals") or {}
+                        message += (
+                            f" Drafts generated: {totals.get('generated', 0)}; "
+                            f"errors: {totals.get('generation_errors', 0)}."
+                        )
+                    _success(message)
                     st.rerun()
                 except Exception as exc:
                     _error(str(exc))
@@ -506,7 +570,7 @@ def _render_review_batch(token: str) -> None:
     c3.metric("Token", token)
     if c4.button("Generate Missing Drafts", use_container_width=True):
         try:
-            result = run_manual_job_email_generation_for_token(token=token, skip_existing=True)
+            result = _generate_drafts(token, skip_existing=True)
             _success(f"Generated {result.get('totals', {}).get('generated', 0)} draft(s).")
             st.rerun()
         except Exception as exc:
@@ -516,7 +580,7 @@ def _render_review_batch(token: str) -> None:
     action_a, action_b, action_c = st.columns([1, 1, 2])
     if action_a.button("Regenerate All Drafts", type="secondary", use_container_width=True):
         try:
-            result = run_manual_job_email_generation_for_token(token=token, skip_existing=False)
+            result = _generate_drafts(token, skip_existing=False)
             _success(f"Regenerated {result.get('totals', {}).get('generated', 0)} draft(s).")
             st.rerun()
         except Exception as exc:
@@ -535,6 +599,19 @@ def _render_review_batch(token: str) -> None:
         except Exception as exc:
             _error(str(exc))
             st.rerun()
+
+    _render_generation_result()
+    missing_drafts = [
+        row for row in rows
+        if not row.get("generated")
+        or not safe_str(getattr(row.get("generated"), "subject", "")).strip()
+        or not safe_str(getattr(row.get("generated"), "body", "")).strip()
+    ]
+    if missing_drafts:
+        st.warning(
+            f"{len(missing_drafts)} row(s) are missing generated subject/body. "
+            "Click Generate Missing Drafts, or open Draft generation details above if it already ran."
+        )
 
     selected_job_ids: list[int] = []
     for row in rows:
