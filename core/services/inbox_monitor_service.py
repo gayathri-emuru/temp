@@ -13,6 +13,7 @@ from django.utils import timezone
 from core.models import InboxScanEvent, SenderAccount, SentEmailLog
 from core.services.email_suppression_service import suppress_if_hard_bounce
 from core.services.live_company_reply_service import record_reply_stop_for_event
+from core.services.sender_account_service import only_sender_email
 from core.services.smtp_send_service import imap_host_for_email
 from core.utils import safe_str
 
@@ -234,7 +235,11 @@ def _scan_account(sender: SenderAccount, *, max_messages: int, timeout_seconds: 
 
 
 def build_inbox_monitor_context() -> dict:
-    active_accounts = SenderAccount.objects.filter(is_active=True).count()
+    qs = SenderAccount.objects.filter(is_active=True)
+    sender_email = only_sender_email()
+    if sender_email:
+        qs = qs.filter(email__iexact=sender_email)
+    active_accounts = qs.count()
     return {
         "active_account_count": active_accounts,
         "default_poll_seconds": 60,
@@ -258,7 +263,11 @@ def _sort_messages_newest_first(messages: list[dict]) -> list[dict]:
 
 def scan_inbox_monitor(*, max_messages: int = DEFAULT_INBOX_MONITOR_MAX_MESSAGES) -> dict:
     requested_max_messages = max(1, int(max_messages))
-    accounts = list(SenderAccount.objects.filter(is_active=True).order_by("email"))
+    qs = SenderAccount.objects.filter(is_active=True)
+    sender_email = only_sender_email()
+    if sender_email:
+        qs = qs.filter(email__iexact=sender_email)
+    accounts = list(qs.order_by("email"))
     started = timezone.now()
     rows = []
     max_workers = min(32, max(1, len(accounts)))

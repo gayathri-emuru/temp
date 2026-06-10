@@ -107,10 +107,15 @@ from core.models import GeneratedEmail  # noqa: E402
 from core.services.email_ai_settings_service import get_email_ai_generation_settings  # noqa: E402
 from core.services.email_composition_service import build_full_email_body  # noqa: E402
 from core.services.email_sending_control_service import get_email_sending_state  # noqa: E402
+from core.services.inbox_monitor_service import (  # noqa: E402
+    DEFAULT_INBOX_MONITOR_MAX_MESSAGES,
+    build_inbox_monitor_context,
+    scan_and_store_inbox_events,
+    scan_inbox_monitor,
+)
 from core.services.linkedin_post_outreach_service import (  # noqa: E402
     build_linkedin_post_review_history,
     create_linkedin_post_review_batch_from_rows,
-    prepare_linkedin_post_rows_for_review,
     run_linkedin_post_outreach,
 )
 from core.services.manual_job_email_service import (  # noqa: E402
@@ -172,6 +177,113 @@ def _render_status_bar() -> None:
     cols[3].metric("Sending", "ON" if sending.get("effective_enabled") else "OFF")
     st.caption(f"Real sends from this Streamlit app are limited to {STREAMLIT_ONLY_SENDER_EMAIL}.")
     st.caption("Resume attachment is required for sends.")
+
+
+def _status_label(status: str) -> str:
+    status = safe_str(status).strip().lower()
+    if status == "reply":
+        return "Human / recruiter message"
+    if status == "blocked":
+        return "Block warning"
+    if status == "bounce":
+        return "Hard bounce"
+    return "System notice"
+
+
+def _render_inbox_monitor() -> None:
+    st.subheader("Inbox Monitor")
+    st.caption("Scan the remote sender inbox, store reply/bounce events, and review latest activity.")
+
+    context = build_inbox_monitor_context()
+    c1, c2, c3 = st.columns([1, 1, 2])
+    max_messages = c1.number_input(
+        "Recent emails",
+        min_value=1,
+        max_value=500,
+        value=int(context.get("default_max_messages") or DEFAULT_INBOX_MONITOR_MAX_MESSAGES),
+        step=25,
+    )
+    store_events = c2.checkbox("Scan + store", value=True)
+    c3.metric("Active inboxes", context.get("active_account_count", 0))
+
+    if st.button("Scan Now", type="primary"):
+        try:
+            with st.spinner("Scanning inbox..."):
+                result = (
+                    scan_and_store_inbox_events(max_messages=int(max_messages))
+                    if store_events
+                    else scan_inbox_monitor(max_messages=int(max_messages))
+                )
+            st.session_state["latest_inbox_result"] = result
+            _success("Inbox scan finished.")
+            st.rerun()
+        except Exception as exc:
+            _error(str(exc))
+            st.rerun()
+
+    result = st.session_state.get("latest_inbox_result")
+    if not result:
+        st.info("Click Scan Now to load inbox activity.")
+        return
+
+    totals = result.get("totals") or {}
+    metrics = st.columns(6)
+    metrics[0].metric("Accounts Checked", f"{totals.get('ok', 0)}/{totals.get('accounts', 0)}")
+    metrics[1].metric("Replies", totals.get("reply", 0))
+    metrics[2].metric("Block Warnings", totals.get("blocked", 0))
+    metrics[3].metric("Hard Bounces", totals.get("bounce", 0))
+    metrics[4].metric("Unavailable", totals.get("unavailable", 0))
+    metrics[5].metric("Returned Emails", result.get("returned_message_count", len(result.get("messages") or [])))
+
+    stored = result.get("stored") or {}
+    if stored:
+        st.caption(
+            f"Stored: {stored.get('created', 0)} new, {stored.get('updated', 0)} updated, "
+            f"{stored.get('matched', 0)} matched, {stored.get('reply_stops', 0)} reply stops."
+        )
+    st.caption(f"Last scan {result.get('checked_at', '-')} | {result.get('duration_ms', 0)} ms")
+
+    left, right = st.columns([0.8, 2.2])
+    with left:
+        st.markdown("**Mailbox Health**")
+        accounts = result.get("accounts") or []
+        if not accounts:
+            st.warning("No active sender inbox found. Add `SENDER_APP_PASSWORD` in Streamlit secrets.")
+        for account in accounts:
+            with st.container(border=True):
+                st.markdown(f"**{account.get('account', '')}**")
+                if account.get("ok"):
+                    st.success("OK")
+                else:
+                    st.error(account.get("error") or "Unavailable")
+                counts = account.get("counts") or {}
+                st.caption(
+                    f"{counts.get('reply', 0)} replies | {counts.get('blocked', 0)} blocked | "
+                    f"{counts.get('bounce', 0)} bounces | {counts.get('notice', 0)} notices"
+                )
+                st.caption(f"{account.get('checked_at', '-')} | {account.get('duration_ms', 0)} ms")
+
+    with right:
+        st.markdown("**Latest Inbox Activity**")
+        messages = result.get("messages") or []
+        if not messages:
+            st.info("No inbox messages found.")
+        for index, message in enumerate(messages):
+            with st.container(border=True):
+                head = st.columns([2.5, 1])
+                head[0].caption(f"{message.get('account', '')} | {message.get('from', '')}")
+                head[1].caption(_status_label(message.get("status", "")))
+                st.markdown(f"**{message.get('subject') or '(no subject)'}**")
+                unread = " | unread" if message.get("unread") else ""
+                st.caption(f"{message.get('date', '-')}{unread}")
+                st.text_area(
+                    "Snippet",
+                    safe_str(message.get("snippet")).strip(),
+                    height=110,
+                    disabled=True,
+                    key=f"inbox_msg_{index}_{safe_str(message.get('key'))[:60]}",
+                    label_visibility="collapsed",
+                )
 
 
 def _render_create_batch() -> None:
@@ -414,11 +526,13 @@ def _render_review_batch(token: str) -> None:
 
 def main() -> None:
     st.title("LinkedIn Job Post Email Review")
-    st.caption("Create drafts, edit every subject and body, then send only the rows you approve.")
+    st.caption("Create drafts, edit every subject and body, send approved emails, and monitor the inbox remotely.")
     _show_last_message()
     _render_status_bar()
 
     with st.sidebar:
+        section = st.radio("View", ["Email Review", "Inbox Monitor"], label_visibility="collapsed")
+        st.divider()
         st.header("Batch")
         token = st.text_input("Review token", value=safe_str(st.session_state.get("active_token", "")).strip())
         if token != st.session_state.get("active_token"):
@@ -428,11 +542,14 @@ def main() -> None:
             st.session_state["active_token"] = ""
             st.rerun()
 
-    active_token = safe_str(st.session_state.get("active_token", "")).strip()
-    if active_token:
-        _render_review_batch(active_token)
+    if section == "Inbox Monitor":
+        _render_inbox_monitor()
     else:
-        _render_create_batch()
+        active_token = safe_str(st.session_state.get("active_token", "")).strip()
+        if active_token:
+            _render_review_batch(active_token)
+        else:
+            _render_create_batch()
 
 
 if __name__ == "__main__":

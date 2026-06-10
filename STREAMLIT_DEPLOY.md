@@ -42,3 +42,4 @@ Streamlit secrets protect API keys, but files committed to a public repo are pub
 
 The hosted Streamlit app is locked to `emurugayathri@gmail.com` for real sends.
 It always attaches `resumes/Gayathri_Resume.pdf`; if that file is missing, sending fails.
+The Inbox Monitor tab also scans only `emurugayathri@gmail.com` and requires the same Gmail app password/IMAP access.
