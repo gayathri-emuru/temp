@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="5">
+    <title>Live Company Reply Stops</title>
+    <style>
+        :root { --bg:#f5f7fb; --panel:#fff; --line:#d9e0ea; --text:#18202f; --muted:#647084; --blue:#1f6feb; --green:#157347; --red:#b42318; --amber:#9a6700; }
+        * { box-sizing: border-box; }
+        body { margin:0; padding:22px; font-family:Arial,sans-serif; background:var(--bg); color:var(--text); }
+        h1 { margin:0 0 6px; font-size:28px; }
+        h2 { margin:0 0 12px; font-size:19px; }
+        .topline,.actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+        .topline { margin-bottom:16px; align-items:flex-start; }
+        .subtle { color:var(--muted); font-size:13px; line-height:1.45; }
+        .button-link,button { display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:8px 12px; border:0; border-radius:6px; background:var(--blue); color:#fff; text-decoration:none; cursor:pointer; }
+        button.secondary,.button-link.secondary { background:#334155; }
+        .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px; }
+        .metric-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
+        .metric { border:1px solid var(--line); border-radius:7px; padding:12px; background:#fbfcff; }
+        .metric strong { display:block; font-size:25px; }
+        .metric span { color:var(--muted); font-size:12px; }
+        table { width:100%; border-collapse:collapse; }
+        th,td { border:1px solid var(--line); padding:9px; text-align:left; vertical-align:top; font-size:13px; }
+        th { background:#eef2f7; }
+        .pill { display:inline-block; border-radius:999px; padding:4px 9px; font-weight:700; font-size:12px; }
+        .pill.active { background:#e7f6ee; color:var(--green); }
+        .pill.stopped { background:#fee4e2; color:var(--red); }
+        .pill.review { background:#fff4d6; color:var(--amber); }
+        .stopped-row { background:#fff7f6; }
+        .job-list { margin:0; padding-left:18px; }
+        .row-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+        .row-actions form { margin:0; display:inline; }
+        .tiny-button { min-height:30px; padding:5px 9px; font-size:12px; }
+        .danger { background:var(--red); }
+        .success { background:var(--green); }
+        input[type="date"] { min-height:38px; border:1px solid var(--line); border-radius:6px; padding:7px 10px; font:inherit; }
+        @media(max-width:900px){ .metric-grid{grid-template-columns:1fr 1fr;} .topline{flex-direction:column;} }
+    </style>
+</head>
+<body>
+<div class="topline">
+    <div>
+        <h1>Live Company Reply Stops</h1>
+        <div class="subtle">
+            Approved companies remain active unless you manually stop them for today. Reply scans no longer stop company sends automatically.
+            This page refreshes every 5 seconds.
+        </div>
+    </div>
+    <div class="actions">
+        <a class="button-link secondary" href="{% url 'pipeline_dashboard' %}">Pipeline</a>
+        <a class="button-link secondary" href="{% url 'send_control_dashboard' %}?batch_date={{ selected_date|date:'Y-m-d' }}">Send Control</a>
+        <a class="button-link secondary" href="{% url 'inbox_monitor_dashboard' %}">Inbox Monitor</a>
+        <form method="post" action="{% url 'inbox_monitor_scan_now' %}" style="margin:0;">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit">Scan Replies Now</button>
+        </form>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="actions">
+        <form method="get" class="actions">
+            <label><strong>Approved job batch date</strong></label>
+            <input type="date" name="batch_date" value="{{ selected_date|date:'Y-m-d' }}">
+            <button class="secondary" type="submit">View Date</button>
+        </form>
+        <div class="subtle">Today is {{ today|date:"F j, Y" }}. The selected date chooses the approved-job batch; manual stops and sent counts always use today.</div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="metric-grid">
+        <div class="metric"><strong>{{ totals.companies }}</strong><span>Approved Companies</span></div>
+        <div class="metric"><strong>{{ totals.still_active }}</strong><span>Still Active</span></div>
+        <div class="metric"><strong>{{ totals.stopped_by_reply }}</strong><span>Manually Stopped</span></div>
+        <div class="metric"><strong>{{ totals.complete }}</strong><span>No Remaining People</span></div>
+        <div class="metric"><strong>{{ totals.sent_today }} / {{ totals.remaining }}</strong><span>Sent Today / Remaining</span></div>
+    </div>
+</div>
+
+<div class="panel">
+    <h2>Approved Companies For {{ selected_date|date:"F j, Y" }}</h2>
+    {% if rows %}
+    <table>
+        <thead>
+        <tr>
+            <th>Company</th>
+            <th>Live Status</th>
+            <th>Sent Today</th>
+            <th>Remaining Selected People</th>
+            <th>Approved Jobs</th>
+            <th>Reply Detail</th>
+            <th>Manual Control</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+        <tr class="{% if row.stop %}stopped-row{% endif %}">
+            <td><strong>{{ row.name }}</strong></td>
+            <td>
+                {% if row.stop %}
+                    <span class="pill stopped">STOPPED TODAY</span>
+                {% elif row.decision and row.decision.reply_decision == "continue" %}
+                    <span class="pill active">MANUAL CONTINUE</span>
+                {% elif row.decision and row.decision.reply_decision == "review" %}
+                    <span class="pill review">NEEDS REVIEW</span>
+                {% elif row.remaining %}
+                    <span class="pill active">ACTIVE</span>
+                {% else %}
+                    <span class="pill">NO REMAINING PEOPLE</span>
+                {% endif %}
+            </td>
+            <td>{{ row.sent_today }}</td>
+            <td>{{ row.remaining }}</td>
+            <td>
+                <ul class="job-list">
+                    {% for job in row.jobs %}<li>#{{ job.id }} {{ job.title }}</li>{% endfor %}
+                </ul>
+            </td>
+            <td>
+                {% if row.decision %}
+                    <strong>{{ row.decision.respondent_email|default:"Manual decision" }}</strong><br>
+                    {% if row.decision.reply_at %}{{ row.decision.reply_at|date:"M j, Y g:i A" }}<br>{% endif %}
+                    <span class="subtle">
+                        Source: {{ row.decision.get_decision_source_display }};
+                        Decision: {{ row.decision.get_reply_decision_display }};
+                        Confidence: {{ row.decision.decision_confidence|floatformat:2 }}
+                    </span><br>
+                    <span class="subtle">{{ row.decision.reason }}</span>
+                    {% if row.decision.manual_note %}
+                        <br><span class="subtle">Manual note: {{ row.decision.manual_note }}</span>
+                    {% endif %}
+                {% else %}
+                    <span class="subtle">No manual decision for this date.</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if row.company %}
+                    <div class="row-actions">
+                        {% if row.stop %}
+                            <form method="post" action="{% url 'live_company_reply_manual_decision' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="company_id" value="{{ row.company.id }}">
+                                <input type="hidden" name="batch_date" value="{{ selected_date|date:'Y-m-d' }}">
+                                <input type="hidden" name="action" value="resume">
+                                <button class="tiny-button success" type="submit">Resume Today</button>
+                            </form>
+                        {% else %}
+                            <form method="post" action="{% url 'live_company_reply_manual_decision' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="company_id" value="{{ row.company.id }}">
+                                <input type="hidden" name="batch_date" value="{{ selected_date|date:'Y-m-d' }}">
+                                <input type="hidden" name="action" value="stop">
+                                <button class="tiny-button danger" type="submit">Stop Today</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <span class="subtle">Company not linked.</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p class="subtle">No approved companies were found for this batch date.</p>
+    {% endif %}
+</div>
+</body>
+</html>

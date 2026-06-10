@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LinkedIn Post Outreach</title>
+    <style>
+        :root {
+            --bg: #f6f8fb;
+            --panel: #ffffff;
+            --line: #d8e0ea;
+            --text: #1f2937;
+            --muted: #64748b;
+            --blue: #2563eb;
+            --blue-dark: #1d4ed8;
+            --green: #157347;
+            --red: #b42318;
+            --amber: #9a6700;
+            --soft-blue: #eff6ff;
+            --soft-green: #ecfdf3;
+            --soft-red: #fff1f0;
+            --soft-amber: #fffaeb;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; color: var(--text); background: var(--bg); }
+        .wrap { max-width: 1180px; margin: 24px auto 60px; padding: 0 18px; }
+        .topnav { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+        a.button-link, button {
+            display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:8px 12px;
+            border-radius:6px; border:0; background:var(--blue); color:#fff; text-decoration:none; cursor:pointer; font-size:14px;
+        }
+        a.button-link:hover, button:hover { background:var(--blue-dark); }
+        .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px; }
+        h1 { margin: 0 0 12px; font-size: 26px; }
+        h2 { margin: 0 0 12px; font-size: 19px; }
+        h3 { margin: 18px 0 8px; font-size: 15px; }
+        label { display:block; font-weight:700; margin:10px 0 6px; }
+        textarea { width:100%; min-height:190px; resize:vertical; box-sizing:border-box; padding:10px; border:1px solid #b6c2d2; border-radius:6px; font-size:14px; font-family:Consolas, monospace; }
+        input[type="text"], input[type="email"], input[type="url"], input[type="date"], select {
+            width:100%; padding:8px 9px; border:1px solid #b6c2d2; border-radius:6px; font-size:13px; background:#fff;
+        }
+        input[type="date"], select { width:auto; min-height:38px; }
+        table { width:100%; border-collapse:collapse; margin-top:10px; }
+        th, td { border:1px solid var(--line); padding:8px; font-size:13px; line-height:1.35; vertical-align:top; text-align:left; }
+        th { background:#eef2f7; color:#344054; }
+        .messages { margin-bottom:16px; }
+        .message { padding:10px 12px; border-radius:6px; border:1px solid var(--line); background:#eef4ff; margin-bottom:8px; }
+        .message.error { background:#fff1f2; border-color:#f3b4bd; }
+        .message.success { background:#eefaf2; border-color:#a7d7bd; }
+        .muted { color:var(--muted); font-size:13px; }
+        .ok { color:var(--green); font-weight:700; }
+        .bad { color:var(--red); font-weight:700; }
+        .warn { color:var(--amber); font-weight:700; }
+        .controls { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin:12px 0; }
+        .controls label { margin:0; font-weight:700; }
+        .metric-grid { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:10px; }
+        .metric { border:1px solid var(--line); border-radius:8px; padding:12px; background:#fbfcff; min-height:84px; }
+        .metric.info { background:var(--soft-blue); border-color:#bfdbfe; }
+        .metric.good { background:var(--soft-green); border-color:#abefc6; }
+        .metric.badish { background:var(--soft-red); border-color:#fecdca; }
+        .metric.warnish { background:var(--soft-amber); border-color:#fedf89; }
+        .metric .value { display:block; color:#101828; font-size:25px; font-weight:800; line-height:1; }
+        .metric .label { display:block; margin-top:7px; color:var(--muted); font-size:12px; line-height:1.3; }
+        .pill { display:inline-block; padding:3px 7px; border-radius:999px; background:#eef2ff; color:#3441a3; font-size:12px; font-weight:700; }
+        .pill.ok { background:#d1fadf; color:#067647; }
+        .pill.bad { background:#fee4e2; color:#b42318; }
+        .pill.warn { background:#fef0c7; color:#93370d; }
+        .notice { margin:16px 0 0; border:1px solid var(--line); border-radius:8px; padding:14px; background:#fbfcff; }
+        .notice.good { background:var(--soft-green); border-color:#abefc6; }
+        .notice.bad { background:var(--soft-red); border-color:#fecdca; }
+        .actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:14px; }
+        .row-editor { border:1px solid var(--line); border-radius:8px; padding:12px; margin-top:12px; background:#fff; }
+        .row-editor.ready { border-color:#abefc6; background:#fcfffd; }
+        .row-editor.needs { border-color:#fedf89; background:#fffdf7; }
+        .row-head { display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:10px; }
+        .row-head label { margin:0; display:inline-flex; align-items:center; gap:6px; }
+        .row-title { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .field-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
+        .field label { margin:0 0 5px; font-size:12px; color:#344054; }
+        .wide { grid-column:1 / -1; }
+        .compact-textarea { min-height:96px; font-family:Arial, sans-serif; }
+        .context-textarea { min-height:140px; }
+        .table-wrap { overflow-x:auto; }
+        pre { margin:0; white-space:pre-wrap; word-break:break-word; font-family:Consolas, monospace; font-size:12px; line-height:1.45; max-height:220px; overflow:auto; }
+        @media (max-width: 900px) { .metric-grid, .field-grid { grid-template-columns:1fr; } }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="topnav">
+        <a class="button-link" href="{% url 'operations_dashboard' %}">Operations</a>
+        <a class="button-link" href="{% url 'pipeline_dashboard' %}">Pipeline</a>
+        <a class="button-link" href="{% url 'manual_linkedin_flow' %}">Manual LinkedIn Jobs</a>
+        <a class="button-link" href="{% url 'manual_dice_flow' %}">Manual Dice Flow</a>
+        <a class="button-link" href="{% url 'manual_bulk_email' %}">Manual Bulk Email</a>
+    </div>
+
+    <h1>LinkedIn Post Outreach</h1>
+    <p class="muted">
+        Paste LinkedIn post links, find the poster email when possible, and create a manual email review batch. This page does not send emails.
+    </p>
+
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <div class="message {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="panel">
+        <div class="row-head">
+            <div>
+                <h2>Past LinkedIn Post Review Batches</h2>
+                <div class="muted">Open prior batches to generate drafts, review rows, or resend anything still pending.</div>
+            </div>
+            <form method="get" class="actions" style="margin:0;">
+                <label for="history_date" class="muted" style="margin:0;">Date</label>
+                <select id="history_date" name="history_date">
+                    <option value="">All dates</option>
+                    {% for item in history.available_dates %}
+                        <option value="{{ item.iso }}" {% if history.selected_date == item.iso %}selected{% endif %}>{{ item.date|date:"M j, Y" }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">View</button>
+                {% if history.selected_date %}
+                    <a class="button-link" href="{% url 'linkedin_post_preview' %}">All Dates</a>
+                {% endif %}
+            </form>
+        </div>
+        {% if history.rows %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Created</th>
+                            <th>Batch Date</th>
+                            <th>Token</th>
+                            <th>Rows</th>
+                            <th>Drafts</th>
+                            <th>Sent</th>
+                            <th>Company / Role</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in history.rows %}
+                        <tr>
+                            <td>{{ row.created_at|date:"M j, Y g:i A" }}</td>
+                            <td>{% if row.batch_date %}{{ row.batch_date|date:"M j, Y" }}{% else %}-{% endif %}</td>
+                            <td><code>{{ row.token }}</code></td>
+                            <td>{{ row.job_count }}</td>
+                            <td>{{ row.generated_count }}/{{ row.job_count }}</td>
+                            <td>{{ row.sent_count }}/{{ row.job_count }}</td>
+                            <td>
+                                {% if row.display_company %}<strong>{{ row.display_company }}</strong><br>{% endif %}
+                                <span class="muted">{{ row.display_title }}</span>
+                            </td>
+                            <td>
+                                <div class="actions" style="margin:0;">
+                                    <a class="button-link" href="{{ row.review_url }}">Open Review</a>
+                                    <a class="button-link" href="{{ row.send_control_url }}">Send Control</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if history.total_rows > history.rows|length %}
+                <p class="muted">Showing {{ history.rows|length }} of {{ history.total_rows }} batches.</p>
+            {% endif %}
+        {% else %}
+            <p class="muted">
+                {% if history.selected_date %}
+                    No LinkedIn post review batches found for this date.
+                {% else %}
+                    No LinkedIn post review batches found yet.
+                {% endif %}
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="panel">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="extract">
+            {{ form.linkedin_post_urls.label_tag }}
+            {{ form.linkedin_post_urls }}
+            {% if form.linkedin_post_urls.errors %}
+                <div class="muted">{{ form.linkedin_post_urls.errors }}</div>
+            {% endif %}
+            <div class="controls">
+                <label>{{ form.find_emails }} {{ form.find_emails.label }}</label>
+                <label>{{ form.use_chatgpt_extraction }} {{ form.use_chatgpt_extraction.label }}</label>
+            </div>
+            <button type="submit">Extract Posts And Prepare Emails</button>
+        </form>
+        <p class="muted">
+            Apollo credits are used only for poster-name + company matches. Rows without enough extracted data stay editable below.
+        </p>
+    </div>
+
+    {% if result %}
+        <div class="panel">
+            <h2>Latest Run</h2>
+            <div class="metric-grid">
+                <div class="metric info">
+                    <span class="value">{{ result.totals.input_urls|default:0 }}</span>
+                    <span class="label">Input URLs</span>
+                </div>
+                <div class="metric good">
+                    <span class="value">{{ result.totals.extracted_posts|default:0 }}</span>
+                    <span class="label">Posts extracted</span>
+                </div>
+                <div class="metric good">
+                    <span class="value">{{ result.totals.emails_found|default:0 }}</span>
+                    <span class="label">Emails found</span>
+                </div>
+                <div class="metric warnish">
+                    <span class="value">{{ result.totals.apollo_credits|default:0 }}</span>
+                    <span class="label">Apollo credits used</span>
+                </div>
+                <div class="metric badish">
+                    <span class="value">{{ result.totals.extract_errors|default:0 }}</span>
+                    <span class="label">Extract errors</span>
+                </div>
+            </div>
+            <p class="muted">
+                Ready for draft review: <strong>{{ result.totals.ready_for_review|default:0 }}</strong>
+                | Needs manual input: <strong>{{ result.totals.needs_manual_input|default:0 }}</strong>
+                | ChatGPT extracted: <strong>{{ result.totals.chatgpt_extracted|default:0 }}</strong>
+                | ChatGPT errors: <strong>{{ result.totals.chatgpt_errors|default:0 }}</strong>
+            </p>
+
+            {% if result.review_batch %}
+                <div class="notice {% if result.review_batch.ok == False %}bad{% else %}good{% endif %}">
+                    {% if result.review_batch.ok == False %}
+                        <h3>Review Batch Not Created</h3>
+                        <p class="bad">{{ result.review_batch.error }}</p>
+                    {% else %}
+                        <h3>LinkedIn Post Draft Review Created</h3>
+                        <p>
+                            <strong>{{ result.review_batch.totals.valid_unique_rows }}</strong> row{{ result.review_batch.totals.valid_unique_rows|pluralize }}
+                            created. Drafts are not generated until you click a generation button on the review page.
+                        </p>
+                        <div class="actions">
+                            <a class="button-link" href="{{ result.review_batch.review_url }}">Open LinkedIn Post Review</a>
+                        </div>
+                        <p class="muted">This opens only this LinkedIn post token. Generate drafts from the review page only after checking the rows.</p>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            <h3>Complete Rows</h3>
+            {% if result.rows %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_review_from_rows">
+                    <input type="hidden" name="row_count" value="{{ result.rows|length }}">
+                    {% for row in result.rows %}
+                        {% with idx=forloop.counter0 %}
+                            <div class="row-editor {% if row.ready_for_review %}ready{% else %}needs{% endif %}">
+                                <div class="row-head">
+                                    <div class="row-title">
+                                        <label>
+                                            <input type="checkbox" name="include_{{ idx }}" {% if row.include_by_default %}checked{% endif %}>
+                                            Include
+                                        </label>
+                                        <strong>#{{ row.row_number }}</strong>
+                                        <span class="pill {% if row.ready_for_review %}ok{% else %}warn{% endif %}">
+                                            {% if row.ready_for_review %}ready{% else %}needs input{% endif %}
+                                        </span>
+                                        <span class="pill {% if row.apollo_status == 'found' %}ok{% elif row.apollo_status == 'error' %}bad{% else %}warn{% endif %}">
+                                            Apollo {{ row.apollo_status|default:"not requested" }}
+                                        </span>
+                                        <span class="pill {% if row.ai_status == 'ok' %}ok{% elif row.ai_status == 'error' %}bad{% else %}warn{% endif %}">
+                                            ChatGPT {{ row.ai_status|default:"not requested" }}
+                                        </span>
+                                    </div>
+                                    <div class="muted">
+                                        {% if row.url %}<a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">post</a>{% endif %}
+                                        {% if row.job_url %} | <a href="{{ row.job_url }}" target="_blank" rel="noopener noreferrer">job</a>{% endif %}
+                                        {% if row.poster_linkedin_url %} | <a href="{{ row.poster_linkedin_url }}" target="_blank" rel="noopener noreferrer">profile</a>{% endif %}
+                                    </div>
+                                </div>
+
+                                {% if row.reason %}<div class="bad">{{ row.reason }}</div>{% endif %}
+                                {% if row.missing_fields %}
+                                    <div class="warn">Needs: {{ row.missing_fields|join:", " }}</div>
+                                {% endif %}
+                                {% if row.blocking_missing_fields %}
+                                    <div class="bad">Required before draft batch: {{ row.blocking_missing_fields|join:", " }}</div>
+                                {% endif %}
+                                {% if row.already_contacted %}<div class="warn">Prior contact found for this email.</div>{% endif %}
+                                {% if row.ai_reason %}<div class="muted">ChatGPT: {{ row.ai_reason }}{% if row.ai_confidence %} | confidence {{ row.ai_confidence }}{% endif %}</div>{% endif %}
+                                {% if row.apollo_reason %}<div class="muted">Apollo: {{ row.apollo_reason }}{% if row.apollo_lookup_type %} | lookup {{ row.apollo_lookup_type }}{% endif %} | credits {{ row.apollo_credits|default:0 }}</div>{% endif %}
+
+                                <input type="hidden" name="status_{{ idx }}" value="{{ row.status }}">
+                                <input type="hidden" name="url_{{ idx }}" value="{{ row.url }}">
+                                <input type="hidden" name="canonical_url_{{ idx }}" value="{{ row.canonical_url }}">
+                                <input type="hidden" name="email_status_{{ idx }}" value="{{ row.email_status }}">
+                                <input type="hidden" name="apollo_status_{{ idx }}" value="{{ row.apollo_status }}">
+                                <input type="hidden" name="apollo_reason_{{ idx }}" value="{{ row.apollo_reason }}">
+                                <input type="hidden" name="apollo_lookup_type_{{ idx }}" value="{{ row.apollo_lookup_type }}">
+                                <input type="hidden" name="apollo_credits_{{ idx }}" value="{{ row.apollo_credits|default:0 }}">
+                                <input type="hidden" name="ai_status_{{ idx }}" value="{{ row.ai_status }}">
+                                <input type="hidden" name="ai_reason_{{ idx }}" value="{{ row.ai_reason }}">
+                                <input type="hidden" name="ai_model_{{ idx }}" value="{{ row.ai_model }}">
+                                <input type="hidden" name="ai_confidence_{{ idx }}" value="{{ row.ai_confidence }}">
+                                <input type="hidden" name="already_contacted_{{ idx }}" value="{{ row.already_contacted|yesno:'1,0' }}">
+
+                                <div class="field-grid">
+                                    <div class="field">
+                                        <label for="poster_name_{{ idx }}">Poster name</label>
+                                        <input id="poster_name_{{ idx }}" type="text" name="poster_name_{{ idx }}" value="{{ row.poster_name }}">
+                                    </div>
+                                    <div class="field">
+                                        <label for="email_{{ idx }}">Email</label>
+                                        <input id="email_{{ idx }}" type="email" name="email_{{ idx }}" value="{{ row.email }}">
+                                    </div>
+                                    <div class="field">
+                                        <label for="company_{{ idx }}">Company</label>
+                                        <input id="company_{{ idx }}" type="text" name="company_{{ idx }}" value="{{ row.company }}">
+                                    </div>
+                                    <div class="field">
+                                        <label for="role_{{ idx }}">Role</label>
+                                        <input id="role_{{ idx }}" type="text" name="role_{{ idx }}" value="{{ row.role }}">
+                                    </div>
+                                    <div class="field">
+                                        <label for="location_{{ idx }}">Location</label>
+                                        <input id="location_{{ idx }}" type="text" name="location_{{ idx }}" value="{{ row.location }}">
+                                    </div>
+                                    <div class="field">
+                                        <label for="poster_linkedin_url_{{ idx }}">Poster LinkedIn</label>
+                                        <input id="poster_linkedin_url_{{ idx }}" type="url" name="poster_linkedin_url_{{ idx }}" value="{{ row.poster_linkedin_url }}">
+                                    </div>
+                                    <div class="field">
+                                        <label for="company_linkedin_url_{{ idx }}">Company LinkedIn</label>
+                                        <input id="company_linkedin_url_{{ idx }}" type="url" name="company_linkedin_url_{{ idx }}" value="{{ row.company_linkedin_url }}">
+                                    </div>
+                                    <div class="field">
+                                        <label for="job_url_{{ idx }}">Job URL</label>
+                                        <input id="job_url_{{ idx }}" type="url" name="job_url_{{ idx }}" value="{{ row.job_url }}">
+                                    </div>
+                                    <div class="field">
+                                        <label for="profile_headline_{{ idx }}">Profile headline</label>
+                                        <input id="profile_headline_{{ idx }}" type="text" name="profile_headline_{{ idx }}" value="{{ row.profile_headline }}">
+                                    </div>
+                                    <div class="field wide">
+                                        <label for="post_text_{{ idx }}">Post/context for LLM</label>
+                                        <textarea id="post_text_{{ idx }}" class="compact-textarea context-textarea" name="post_text_{{ idx }}">{{ row.post_text }}</textarea>
+                                    </div>
+                                    <div class="field wide">
+                                        <label for="manual_notes_{{ idx }}">Manual notes</label>
+                                        <textarea id="manual_notes_{{ idx }}" class="compact-textarea" name="manual_notes_{{ idx }}">{{ row.manual_notes }}</textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endwith %}
+                    {% endfor %}
+                    <div class="actions">
+                        <button type="submit">Create LinkedIn Post Review Batch</button>
+                    </div>
+                </form>
+            {% else %}
+                <p class="muted">No rows processed.</p>
+            {% endif %}
+
+            {% if result.invalid_rows %}
+                <h3>Invalid Rows</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>#</th><th>URL</th><th>Reason</th></tr></thead>
+                        <tbody>
+                        {% for row in result.invalid_rows %}
+                            <tr><td>{{ row.row_number }}</td><td>{{ row.url }}</td><td>{{ row.reason }}</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+</body>
+</html>

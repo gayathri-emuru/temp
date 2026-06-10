@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LinkedIn Job ID Mapper</title>
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --panel: #ffffff;
+            --line: #d6deea;
+            --text: #162033;
+            --muted: #5b6b83;
+            --blue: #1459c7;
+            --blue-dark: #10469c;
+            --green: #0f7b52;
+            --soft-blue: #eef4ff;
+            --soft-green: #edfdf3;
+            --soft-amber: #fff8e7;
+            --amber: #9a6700;
+            --ink: #0f172a;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 24px; font-family: Arial, sans-serif; background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%); color: var(--text); }
+        h1 { margin: 0 0 6px; font-size: 30px; color: var(--ink); }
+        h2 { margin: 0 0 12px; font-size: 18px; color: var(--ink); }
+        p { margin: 0; }
+        .subtle { color: var(--muted); font-size: 13px; line-height: 1.5; }
+        .topline { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; margin-bottom: 18px; }
+        .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .button-link, button {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-height: 40px; padding: 9px 14px; border-radius: 8px; border: 0;
+            background: var(--blue); color: #fff; text-decoration: none; cursor: pointer; font-size: 14px;
+            box-shadow: 0 8px 18px rgba(20, 89, 199, 0.15);
+        }
+        .button-link:hover, button:hover { background: var(--blue-dark); }
+        button.secondary, .button-link.secondary { background: #334155; box-shadow: none; }
+        button.ghost { background: #e8eef8; color: #22324d; box-shadow: none; }
+        .grid { display: grid; grid-template-columns: 1.05fr 1.2fr; gap: 16px; }
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+        }
+        .panel.tint { background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%); }
+        label { display: block; margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #22324d; }
+        textarea {
+            width: 100%;
+            min-height: 280px;
+            resize: vertical;
+            border: 1px solid #b9c7db;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 13px;
+            line-height: 1.45;
+            font-family: Consolas, "Courier New", monospace;
+            color: #182233;
+            background: #fcfdff;
+        }
+        .tool-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .metric {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 12px;
+            background: #fbfcff;
+            min-height: 84px;
+        }
+        .metric.good { background: var(--soft-green); }
+        .metric.info { background: var(--soft-blue); }
+        .metric.warn { background: var(--soft-amber); }
+        .metric .value { display: block; font-size: 28px; font-weight: 800; color: var(--ink); }
+        .metric .label { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+        .output-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .stack { display: grid; gap: 16px; }
+        .helper-list { margin: 10px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+        .status {
+            margin-top: 14px;
+            border-radius: 10px;
+            padding: 12px 14px;
+            background: #eef4ff;
+            border: 1px solid #c8d9f6;
+            color: #234067;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .status.warn {
+            background: #fff8e7;
+            border-color: #f5d48f;
+            color: #7a5300;
+        }
+        .small-title { margin-bottom: 8px; font-size: 15px; font-weight: 700; color: var(--ink); }
+        @media (max-width: 1100px) {
+            .grid, .output-grid, .summary-grid { grid-template-columns: 1fr; }
+            .topline { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topline">
+        <div>
+            <h1>LinkedIn Job ID Mapper</h1>
+            <div class="subtle">Paste LinkedIn job URLs on the left, paste your URL-to-job-ID JSON on the right, and this page will return job IDs for matched URLs while keeping unmatched URLs ready for the next round.</div>
+        </div>
+        <div class="actions">
+            <a class="button-link secondary" href="{% url 'operations_dashboard' %}">Operations</a>
+            <a class="button-link secondary" href="{% url 'manual_linkedin_flow' %}">Manual LinkedIn Flow</a>
+            <a class="button-link secondary" href="{% url 'pipeline_dashboard' %}">Pipeline</a>
+        </div>
+    </div>
+
+    <div class="panel tint" style="margin-bottom:16px;">
+        <div class="summary-grid">
+            <div class="metric info"><span id="metricUrls" class="value">{{ latest_linkedin_urls_count|default:0 }}</span><span class="label">URLs loaded</span></div>
+            <div class="metric good"><span id="metricMatched" class="value">0</span><span class="label">Matched job IDs</span></div>
+            <div class="metric warn"><span id="metricMissing" class="value">0</span><span class="label">URLs still missing IDs</span></div>
+            <div class="metric"><span id="metricMapRows" class="value">0</span><span class="label">Rows in mapping JSON</span></div>
+        </div>
+        <div id="statusBox" class="status">
+            {% if latest_batch_date %}
+                Loaded {{ latest_linkedin_urls_count }} LinkedIn URLs from batch date <strong>{{ latest_batch_date }}</strong>. Paste your mapping JSON, then click <strong>Build Job IDs</strong>.
+            {% else %}
+                No populated batch was found yet. Paste your URL list and mapping JSON, then click <strong>Build Job IDs</strong>.
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="panel">
+            <h2>LinkedIn URLs</h2>
+            <label for="urlsInput">Stored LinkedIn job URLs from the latest batch date{% if latest_batch_date %}: {{ latest_batch_date }}{% endif %}</label>
+            <textarea id="urlsInput" placeholder="https://www.linkedin.com/jobs/view/1234567890/
+https://www.linkedin.com/jobs/view/0987654321/">{{ latest_linkedin_urls_text }}</textarea>
+            <div class="tool-row">
+                <button id="buildButton" type="button">Build Job IDs</button>
+                <button id="clearButton" type="button" class="ghost">Clear</button>
+            </div>
+            <ul class="helper-list">
+                <li>URLs are normalized before matching, so query strings and trailing slashes will not break the match.</li>
+                <li>Duplicates are preserved in the output order you pasted.</li>
+            </ul>
+        </div>
+
+        <div class="panel">
+            <h2>URL → Job ID JSON</h2>
+            <label for="mappingInput">Accepted formats</label>
+            <textarea id="mappingInput" placeholder='{
+  "https://www.linkedin.com/jobs/view/1234567890/": 5012,
+  "https://www.linkedin.com/jobs/view/0987654321/": { "id": 5013 }
+}
+
+or
+
+[
+  { "url": "https://www.linkedin.com/jobs/view/1234567890/", "id": 5012 },
+  { "linkedin_url": "https://www.linkedin.com/jobs/view/0987654321/", "job_id": 5013 }
+]'></textarea>
+            <ul class="helper-list">
+                <li>Accepted keys for URLs: <code>url</code>, <code>linkedin_url</code>, <code>job_url</code>, <code>linkedinUrl</code>.</li>
+                <li>Accepted keys for IDs: <code>id</code>, <code>job_id</code>, <code>jobId</code>, <code>company_job_id</code>.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="output-grid" style="margin-top:16px;">
+        <div class="stack">
+            <div class="panel">
+                <div class="small-title">Job IDs To Send</div>
+                <label for="idsOutput">JSON array of matched IDs</label>
+                <textarea id="idsOutput" readonly></textarea>
+                <div class="tool-row">
+                    <button type="button" class="ghost" data-copy-target="idsOutput">Copy IDs</button>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="small-title">Resolved Pairs</div>
+                <label for="resolvedOutput">Each matched URL with its job ID</label>
+                <textarea id="resolvedOutput" readonly></textarea>
+                <div class="tool-row">
+                    <button type="button" class="ghost" data-copy-target="resolvedOutput">Copy Resolved Pairs</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="stack">
+            <div class="panel">
+                <div class="small-title">URLs Still Missing IDs</div>
+                <label for="missingOutput">Paste this back after you fill in the missing job IDs</label>
+                <textarea id="missingOutput" readonly></textarea>
+                <div class="tool-row">
+                    <button type="button" class="ghost" data-copy-target="missingOutput">Copy Missing URLs</button>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="small-title">Normalized Mapping Snapshot</div>
+                <label for="mappingOutput">Parsed URL → ID map used by this run</label>
+                <textarea id="mappingOutput" readonly></textarea>
+                <div class="tool-row">
+                    <button type="button" class="ghost" data-copy-target="mappingOutput">Copy Mapping Snapshot</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const urlsInput = document.getElementById("urlsInput");
+    const mappingInput = document.getElementById("mappingInput");
+    const idsOutput = document.getElementById("idsOutput");
+    const resolvedOutput = document.getElementById("resolvedOutput");
+    const missingOutput = document.getElementById("missingOutput");
+    const mappingOutput = document.getElementById("mappingOutput");
+    const statusBox = document.getElementById("statusBox");
+    const metricUrls = document.getElementById("metricUrls");
+    const metricMatched = document.getElementById("metricMatched");
+    const metricMissing = document.getElementById("metricMissing");
+    const metricMapRows = document.getElementById("metricMapRows");
+
+    function setStatus(message, kind) {
+        statusBox.textContent = message;
+        statusBox.className = kind === "warn" ? "status warn" : "status";
+    }
+
+    function normalizeUrl(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+        try {
+            const url = new URL(raw);
+            url.hash = "";
+            url.search = "";
+            let pathname = url.pathname.replace(/\/+$/, "");
+            if (!pathname) pathname = "/";
+            return `${url.protocol}//${url.hostname.toLowerCase()}${pathname}`;
+        } catch (error) {
+            return raw.replace(/[?#].*$/, "").replace(/\/+$/, "").trim();
+        }
+    }
+
+    function parseUrlList(rawText) {
+        const text = String(rawText || "").trim();
+        if (!text) return [];
+        if (text.startsWith("[")) {
+            const parsed = JSON.parse(text);
+            if (!Array.isArray(parsed)) throw new Error("URL input JSON must be an array.");
+            return parsed.map(item => String(item || "").trim()).filter(Boolean);
+        }
+        return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    }
+
+    function pickUrlFromObject(row) {
+        if (!row || typeof row !== "object") return "";
+        return row.url || row.linkedin_url || row.job_url || row.linkedinUrl || row.jobUrl || "";
+    }
+
+    function pickIdFromObject(row) {
+        if (!row || typeof row !== "object") return "";
+        const value = row.id ?? row.job_id ?? row.jobId ?? row.company_job_id ?? row.companyJobId;
+        return value === undefined || value === null ? "" : String(value).trim();
+    }
+
+    function parseMapping(rawText) {
+        const text = String(rawText || "").trim();
+        if (!text) return new Map();
+        const parsed = JSON.parse(text);
+        const rows = [];
+
+        if (Array.isArray(parsed)) {
+            parsed.forEach((row, index) => {
+                const url = pickUrlFromObject(row);
+                const id = pickIdFromObject(row);
+                if (!url) throw new Error(`Mapping row ${index + 1} is missing a URL field.`);
+                if (!id) throw new Error(`Mapping row ${index + 1} is missing an ID field.`);
+                rows.push([normalizeUrl(url), id]);
+            });
+        } else if (parsed && typeof parsed === "object") {
+            Object.entries(parsed).forEach(([key, value]) => {
+                const normalizedKey = normalizeUrl(key);
+                if (value && typeof value === "object" && !Array.isArray(value)) {
+                    const nestedId = pickIdFromObject(value);
+                    const nestedUrl = pickUrlFromObject(value);
+                    const url = normalizedKey || normalizeUrl(nestedUrl);
+                    if (!url || !nestedId) {
+                        throw new Error(`Mapping entry for ${key} is missing a usable URL or ID.`);
+                    }
+                    rows.push([url, nestedId]);
+                    return;
+                }
+                const id = value === undefined || value === null ? "" : String(value).trim();
+                if (!normalizedKey || !id) {
+                    throw new Error(`Mapping entry for ${key} is missing a usable URL or ID.`);
+                }
+                rows.push([normalizedKey, id]);
+            });
+        } else {
+            throw new Error("Mapping JSON must be an object or an array.");
+        }
+
+        return new Map(rows);
+    }
+
+    function copyFrom(targetId) {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        el.focus();
+        el.select();
+        document.execCommand("copy");
+        setStatus(`Copied ${targetId}.`, "ok");
+    }
+
+    function renderResults() {
+        try {
+            const rawUrls = parseUrlList(urlsInput.value);
+            const mapping = parseMapping(mappingInput.value);
+            const matchedIds = [];
+            const resolvedPairs = [];
+            const missingUrls = [];
+
+            rawUrls.forEach((originalUrl) => {
+                const normalized = normalizeUrl(originalUrl);
+                const id = mapping.get(normalized);
+                if (id) {
+                    matchedIds.push(id);
+                    resolvedPairs.push({ url: originalUrl, normalized_url: normalized, id: id });
+                } else {
+                    missingUrls.push(originalUrl);
+                }
+            });
+
+            idsOutput.value = JSON.stringify(matchedIds, null, 2);
+            resolvedOutput.value = JSON.stringify(resolvedPairs, null, 2);
+            missingOutput.value = JSON.stringify(missingUrls, null, 2);
+            mappingOutput.value = JSON.stringify(Object.fromEntries(mapping.entries()), null, 2);
+
+            metricUrls.textContent = String(rawUrls.length);
+            metricMatched.textContent = String(matchedIds.length);
+            metricMissing.textContent = String(missingUrls.length);
+            metricMapRows.textContent = String(mapping.size);
+
+            if (!rawUrls.length) {
+                setStatus("Paste at least one LinkedIn URL to build job IDs.", "warn");
+            } else if (missingUrls.length) {
+                setStatus(`Built ${matchedIds.length} job IDs. ${missingUrls.length} URLs still need IDs, and they are ready in the missing-URLs box.`, "warn");
+            } else {
+                setStatus(`Built ${matchedIds.length} job IDs. Every pasted URL matched successfully.`, "ok");
+            }
+        } catch (error) {
+            idsOutput.value = "";
+            resolvedOutput.value = "";
+            missingOutput.value = "";
+            mappingOutput.value = "";
+            metricMatched.textContent = "0";
+            metricMissing.textContent = "0";
+            metricMapRows.textContent = "0";
+            setStatus(error.message || String(error), "warn");
+        }
+    }
+
+    document.getElementById("buildButton").addEventListener("click", renderResults);
+    document.getElementById("clearButton").addEventListener("click", () => {
+        urlsInput.value = "";
+        mappingInput.value = "";
+        idsOutput.value = "";
+        resolvedOutput.value = "";
+        missingOutput.value = "";
+        mappingOutput.value = "";
+        metricUrls.textContent = "0";
+        metricMatched.textContent = "0";
+        metricMissing.textContent = "0";
+        metricMapRows.textContent = "0";
+        setStatus("Cleared. Paste your next batch when ready.", "ok");
+    });
+
+    document.querySelectorAll("[data-copy-target]").forEach((button) => {
+        button.addEventListener("click", () => copyFrom(button.getAttribute("data-copy-target")));
+    });
+
+    urlsInput.addEventListener("input", () => {
+        try {
+            metricUrls.textContent = String(parseUrlList(urlsInput.value).length);
+        } catch (error) {
+            metricUrls.textContent = "0";
+        }
+    });
+</script>
+</body>
+</html>

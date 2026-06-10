@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Read-only Email Review</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 22px; background: #f6f7fb; color: #18202f; }
+        a { color: #075fc7; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .topbar, .job { background: #fff; border: 1px solid #d9dee8; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .muted { color: #657083; }
+        .ok { color: #147a3d; font-weight: 700; }
+        .bad { color: #b42318; font-weight: 700; }
+        .pill { display: inline-block; border: 1px solid #cfd6e4; border-radius: 999px; padding: 2px 8px; margin-right: 6px; font-size: 12px; }
+        .links a { margin-right: 12px; }
+        .job-actions { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 10px; }
+        .job-actions .links { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+        .job-actions .links a { margin-right: 0; }
+        .inline-form { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+        .date-filter { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+        .date-filter input[type="date"] { min-height: 38px; border: 1px solid #cfd6e4; border-radius: 6px; padding: 7px 10px; font: inherit; color: #18202f; background: #fff; }
+        .job-main { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(460px, 0.95fr); gap: 18px; align-items: start; margin-top: 14px; }
+        .email-preview { border: 1px solid #d9dee8; border-radius: 8px; padding: 14px; background: #fbfcff; position: sticky; top: 12px; }
+        .email-preview h3 { margin: 0 0 10px; font-size: 17px; }
+        .email-subject { border-bottom: 1px solid #e3e7ef; padding-bottom: 10px; margin-bottom: 12px; line-height: 1.45; }
+        .email-body { white-space: pre-wrap; word-break: break-word; line-height: 1.55; font-size: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border-bottom: 1px solid #e3e7ef; padding: 8px; vertical-align: top; text-align: left; }
+        th { font-size: 13px; color: #4a5568; }
+        pre { white-space: pre-wrap; word-break: break-word; background: #f9fafc; border: 1px solid #e3e7ef; border-radius: 6px; padding: 10px; margin: 8px 0 0; font-family: Arial, sans-serif; line-height: 1.45; }
+        button { border: 0; border-radius: 6px; padding: 8px 12px; cursor: pointer; background: #075fc7; color: #fff; }
+        button.danger { background: #b42318; }
+        button.secondary { background: #334155; }
+        button.generate { background: #155eef; }
+        button.regenerate { background: #334155; }
+        .top-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+        .model-settings { display: grid; grid-template-columns: minmax(140px, 180px) minmax(180px, 260px) minmax(180px, 260px) auto; gap: 10px; align-items: end; margin-top: 12px; }
+        .model-settings label { display: grid; gap: 4px; font-size: 13px; color: #657083; }
+        .model-settings input, .model-settings select { min-height: 38px; border: 1px solid #cfd6e4; border-radius: 6px; padding: 7px 10px; font: inherit; color: #18202f; background: #fff; }
+        .message { padding: 10px 12px; border-radius: 6px; margin: 10px 0; background: #e7f6ee; border: 1px solid #a7d7bd; }
+        .message.error { background: #fee4e2; border-color: #f5a7a0; }
+        @media (max-width: 1100px) {
+            .job-main { grid-template-columns: 1fr; }
+            .email-preview { position: static; }
+            .model-settings { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <h1 style="margin: 0 0 8px;">Read-only Email Review</h1>
+        {% if batch %}
+            <div class="muted">
+                Batch: <strong>{{ batch.batch_date }}</strong>
+                | Jobs: <strong>{{ totals.jobs }}</strong>
+                | Ready jobs: <strong>{{ totals.ready_jobs }}</strong>
+                | Selected recipients shown: <strong>{{ totals.selected_recipients }}</strong>
+            </div>
+        {% else %}
+            <div class="bad">No populated batch found.</div>
+        {% endif %}
+        <div class="links" style="margin-top:10px;">
+            <a href="/">Operations</a>
+            <a href="/admin/">Admin</a>
+            <a href="{% url 'send_control_dashboard' %}{% if selected_batch_date %}?batch_date={{ selected_batch_date }}{% endif %}">Send Control</a>
+            <a href="{% url 'inbox_monitor_dashboard' %}">Inbox Monitor</a>
+            <a href="{% url 'followup_dashboard' %}">Follow-Ups</a>
+            <form method="post" action="{% url 'inbox_monitor_scan_now' %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button class="secondary" type="submit">Scan Inboxes</button>
+            </form>
+            {% if batch %}<a href="/review-readonly/?batch_date={{ selected_batch_date }}">Permalink for this batch</a>{% endif %}
+        </div>
+        <form method="get" action="{% url 'read_only_review_dashboard' %}" class="date-filter">
+            <label for="batch-date-filter" class="muted"><strong>Batch date</strong></label>
+            <input id="batch-date-filter" type="date" name="batch_date" value="{{ selected_batch_date }}">
+            <button type="submit" class="secondary">View Date</button>
+            {% if batch %}
+                <a href="{% url 'send_control_dashboard' %}?batch_date={{ selected_batch_date }}">Send emails for this date</a>
+            {% endif %}
+        </form>
+        <form method="post" action="{% url 'set_email_generation_model_view' %}" class="model-settings">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <label>
+                Email AI provider
+                <select name="email_ai_provider">
+                    <option value="openai" {% if email_ai_settings.provider == "openai" %}selected{% endif %}>OpenAI</option>
+                    <option value="anthropic" {% if email_ai_settings.provider == "anthropic" %}selected{% endif %}>Claude</option>
+                </select>
+            </label>
+            <label>
+                OpenAI model
+                <input type="text" name="openai_email_model" value="{{ email_ai_settings.openai_model }}" list="openai-email-model-options">
+            </label>
+            <label>
+                Claude model
+                <input type="text" name="anthropic_email_model" value="{{ email_ai_settings.anthropic_model }}" list="anthropic-email-model-options">
+            </label>
+            <button type="submit" class="secondary">Save Email Model</button>
+            <datalist id="openai-email-model-options">
+                {% for model in email_ai_settings.openai_model_options %}
+                    <option value="{{ model }}">
+                {% endfor %}
+            </datalist>
+            <datalist id="anthropic-email-model-options">
+                {% for model in email_ai_settings.anthropic_model_options %}
+                    <option value="{{ model }}">
+                {% endfor %}
+            </datalist>
+        </form>
+        <p class="muted" style="margin:8px 0 0;">
+            Email generation only. Current: <strong>{{ email_ai_settings.provider_label }}</strong> using <strong>{{ email_ai_settings.model }}</strong>.
+            OpenAI key: {% if email_ai_settings.openai_configured %}<span class="ok">configured</span>{% else %}<span class="bad">missing OPENAI_API_KEY</span>{% endif %}.
+            Claude key: {% if email_ai_settings.anthropic_configured %}<span class="ok">configured</span>{% else %}<span class="bad">missing ANTHROPIC_API_KEY</span>{% endif %}.
+        </p>
+        {% if messages %}
+            {% for message in messages %}
+                <div class="message {% if message.tags == 'error' %}error{% endif %}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        <p class="muted">
+            This page shows the same selected recipients the real send path can use, capped at 10 per job.
+            The Generate button only creates or refreshes a draft for one job; it never sends email.
+        </p>
+        {% if batch %}
+            <div class="top-actions">
+                <form method="post" action="{% url 'run_job_filter_review_view' %}"
+                      onsubmit="return confirm('Run the ChatGPT APPLY/REJECT filter for every unsent job in {{ batch.batch_date }}? This uses API tokens and will only create proposed rejects for your acceptance.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="batch_date" value="{{ batch.batch_date|date:'Y-m-d' }}">
+                    <button type="submit">Run ChatGPT Job Filter</button>
+                </form>
+                <form method="post" action="{% url 'read_only_regenerate_batch_emails_view' %}"
+                      onsubmit="return confirm('Generate drafts only for eligible jobs in {{ batch.batch_date }} that are missing generated subject/body? This uses the selected email AI model and does not send emails.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="batch_date" value="{{ batch.batch_date|date:'Y-m-d' }}">
+                    <input type="hidden" name="generation_scope" value="missing">
+                    <button type="submit" class="generate">Generate Missing Emails</button>
+                </form>
+                <form method="post" action="{% url 'read_only_regenerate_batch_emails_view' %}"
+                      onsubmit="return confirm('Regenerate email drafts for every eligible job in {{ batch.batch_date }}? This uses the selected email AI model and overwrites existing generated subject/body drafts. It does not send emails.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="batch_date" value="{{ batch.batch_date|date:'Y-m-d' }}">
+                    <input type="hidden" name="generation_scope" value="all">
+                    <button type="submit" class="regenerate">Regenerate All Emails</button>
+                </form>
+            </div>
+        {% endif %}
+        {% if job_filter_review_result %}
+            <details open>
+                <summary>Latest job filter run</summary>
+                <pre>{{ job_filter_review_result }}</pre>
+            </details>
+        {% endif %}
+        {% if read_only_generate_email_result %}
+            <details open>
+                <summary>Latest single-job email generation</summary>
+                <pre>{{ read_only_generate_email_result }}</pre>
+            </details>
+        {% endif %}
+        {% if read_only_bulk_generate_email_result %}
+            <details open>
+                <summary>Latest batch email regeneration</summary>
+                <pre>{{ read_only_bulk_generate_email_result }}</pre>
+            </details>
+        {% endif %}
+    </div>
+
+    {% if batch and job_filter_reviews %}
+        <div class="topbar">
+            <h2 style="margin:0 0 8px;">Proposed Rejects Needing Your Acceptance</h2>
+            <p class="muted">
+                Accepting these does not delete records. It marks the job blocked and unapproves it so email sending skips it.
+            </p>
+            <form method="post" action="{% url 'accept_job_filter_reviews_view' %}"
+                  onsubmit="return confirm('Accept selected proposed rejects and block those jobs from sending?');">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ batch.batch_date|date:'Y-m-d' }}">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="width:70px;">
+                            <label style="display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer;">
+                                <input type="checkbox" id="select-all-job-filter-reviews">
+                                All
+                            </label>
+                        </th>
+                        <th>Company</th>
+                        <th>Job</th>
+                        <th>Reason</th>
+                        <th>Links</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in job_filter_reviews %}
+                        <tr>
+                            <td><input type="checkbox" name="review_id" value="{{ row.review.id }}"></td>
+                            <td>{{ row.company }}</td>
+                            <td>Job {{ row.job.id }} - {{ row.job.title }}</td>
+                            <td><span class="bad">{{ row.reason }}</span></td>
+                            <td class="links">
+                                {% if row.linkedin_url %}<a href="{{ row.linkedin_url }}" target="_blank" rel="noopener noreferrer">LinkedIn job</a>{% endif %}
+                                <a href="{{ row.job_admin_url }}" target="_blank" rel="noopener noreferrer">Job admin</a>
+                                {% if row.company_admin_url %}<a href="{{ row.company_admin_url }}" target="_blank" rel="noopener noreferrer">Company admin</a>{% endif %}
+                                <a href="{{ row.review_admin_url }}" target="_blank" rel="noopener noreferrer">Review admin</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                <div style="margin-top:12px;">
+                    <button type="submit" class="danger">Accept Selected Rejects</button>
+                    <button type="submit" class="secondary" formaction="{% url 'dismiss_job_filter_reviews_view' %}"
+                            onclick="return confirm('Dismiss selected proposed rejects and keep those jobs eligible?');">
+                        Dismiss Selected
+                    </button>
+                </div>
+            </form>
+        </div>
+    {% endif %}
+
+    {% for row in jobs %}
+        <div class="job" id="job-{{ row.job.id }}">
+            <h2 style="margin:0 0 6px;">
+                Job {{ row.job.id }} - {{ row.job.company }} - {{ row.job.title }}
+            </h2>
+            <div class="muted">
+                Status: <strong>{{ row.job.status }}</strong>
+                | Selected recipients: <strong>{{ row.selected_count }}/{{ row.max_targets }}</strong>
+                | Approved:
+                {% if row.is_approved %}<span class="ok">YES</span>{% else %}<span class="bad">NO</span>{% endif %}
+                | Ready:
+                {% if row.ready %}<span class="ok">YES</span>{% else %}<span class="bad">NO</span>{% endif %}
+            </div>
+            <div class="job-actions">
+                <form method="post" action="{% url 'read_only_generate_job_email_view' %}" class="inline-form"
+                      {% if row.generated and row.generated.subject and row.generated.body %}
+                      onsubmit="return confirm('Regenerate and replace the current draft for Job {{ row.job.id }}?');"
+                      {% else %}
+                      onsubmit="return confirm('Generate an email draft for Job {{ row.job.id }}? This uses the selected email AI model.');"
+                      {% endif %}>
+                    {% csrf_token %}
+                    <input type="hidden" name="job_id" value="{{ row.job.id }}">
+                    {% if batch %}<input type="hidden" name="batch_date" value="{{ batch.batch_date|date:'Y-m-d' }}">{% endif %}
+                    {% if row.generated and row.generated.subject and row.generated.body %}
+                        <button type="submit" class="regenerate">Regenerate Email</button>
+                    {% else %}
+                        <button type="submit" class="generate">Generate Email</button>
+                    {% endif %}
+                </form>
+                <div class="links">
+                    <a href="{{ row.job_admin_url }}">Edit job in admin</a>
+                    {% if row.company_admin_url %}<a href="{{ row.company_admin_url }}">Edit company</a>{% endif %}
+                    <a href="{{ row.generated_admin_url }}">Edit generated email</a>
+                    <a href="{{ row.approval_admin_url }}">Edit approval</a>
+                    {% if row.job.linkedin_url %}<a href="{{ row.job.linkedin_url }}" target="_blank" rel="noopener noreferrer">Open LinkedIn job</a>{% endif %}
+                </div>
+            </div>
+
+            <div class="job-main">
+                <div>
+                    {% if not row.recipients %}
+                        <form method="post" action="/send-control/force-apollo-topup/"
+                              style="margin-bottom:10px;"
+                              onsubmit="return confirm('Force-fetch new data/ML contacts for {{ row.job.company }}? This spends Apollo credits to find contacts not yet in the DB.');">
+                            {% csrf_token %}
+                            <input type="hidden" name="company_id" value="{{ row.job.company_ref_id }}">
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button type="submit" style="background:#b42318;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;">
+                                Force Fetch Data/ML Contacts
+                            </button>
+                            <span class="muted" style="font-size:12px;margin-left:6px;">Finds new people not yet in DB, skips already-contacted ones.</span>
+                        </form>
+                    {% endif %}
+                    {% if row.recipients %}
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:50px;">#</th>
+                                    <th>Person</th>
+                                    <th>Title</th>
+                                    <th>Email</th>
+                                    <th style="width:120px;">Prior send</th>
+                                    <th>Admin</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for r in row.recipients %}
+                                <tr>
+                                    <td>{{ r.selection_order }}</td>
+                                    <td>
+                                        {% if r.apollo_linkedin_url %}
+                                            <a href="{{ r.apollo_linkedin_url }}" target="_blank" rel="noopener noreferrer">{{ r.name }}</a>
+                                        {% else %}
+                                            {{ r.name }}
+                                        {% endif %}
+                                    </td>
+                                    <td class="muted">{{ r.apollo_title|default:"-" }}</td>
+                                    <td>{{ r.email }}</td>
+                                    <td>{% if r.already_real_sent %}<span class="bad">Already sent</span>{% else %}<span class="ok">Clear</span>{% endif %}</td>
+                                    <td class="links">
+                                        <a href="{{ r.recruiter_admin_url }}" target="_blank" rel="noopener noreferrer">Edit person</a>
+                                        <a class="bad" href="{{ r.recruiter_delete_url }}">Delete</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p class="bad">No selected recipients. Real send will skip this job.</p>
+                    {% endif %}
+
+                    {% if row.fetched_not_selected %}
+                        <div style="margin-top:14px;border:1px solid #f0d2a0;background:#fff8ec;border-radius:6px;padding:10px 12px;">
+                            <div style="font-weight:600;margin-bottom:6px;">
+                                Past Apollo contacts not used for this job
+                                <span class="muted" style="font-weight:400;font-size:12px;">
+                                    ({{ row.fetched_not_selected|length }} person{{ row.fetched_not_selected|length|pluralize:"s" }} found in past Apollo lookups)
+                                </span>
+                            </div>
+                            <table style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th>Person</th>
+                                        <th>Title</th>
+                                        <th>Email</th>
+                                        <th style="width:120px;">Status</th>
+                                        <th>Reason</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for p in row.fetched_not_selected %}
+                                    <tr>
+                                        <td>
+                                            {% if p.linkedin_url %}
+                                                <a href="{{ p.linkedin_url }}" target="_blank" rel="noopener noreferrer">{{ p.name }}</a>
+                                            {% else %}
+                                                {{ p.name }}
+                                            {% endif %}
+                                        </td>
+                                        <td class="muted">{{ p.title|default:"-" }}</td>
+                                        <td>{{ p.email|default:"-" }}</td>
+                                        <td>
+                                            {% if p.already_real_sent %}
+                                                <span class="bad">already sent</span>
+                                            {% elif p.status == "selected" %}
+                                                <span class="ok">{{ p.status }}</span>
+                                            {% else %}
+                                                <span class="bad">{{ p.status|default:"-" }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="muted">
+                                            {% if p.already_real_sent %}
+                                                already emailed before
+                                            {% else %}
+                                                {{ p.reason|default:"-" }}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                            <div class="muted" style="margin-top:6px;font-size:12px;">
+                                Tip: rows with no work email cannot be sent unless an email is found manually. Already sent contacts are kept out of the current recipient list to avoid duplicate outreach.
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="email-preview">
+                    <h3>Full Email</h3>
+                    {% if not row.generated %}
+                        <p class="bad">Missing generated email. This job cannot send until a subject and body exist.</p>
+                    {% elif not row.generated.subject or not row.generated.body %}
+                        <p class="bad">Generated email exists but subject/body is empty.</p>
+                    {% else %}
+                        {% if row.preview_recipient_name %}
+                            <div class="muted" style="margin-bottom:8px;">Preview recipient: <strong>{{ row.preview_recipient_name }}</strong></div>
+                        {% endif %}
+                        <div class="email-subject">
+                            <span class="pill">Subject</span>
+                            <strong>{{ row.preview_subject }}</strong>
+                        </div>
+                        <div class="email-body">{{ row.preview_body }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+    <script>
+        (function () {
+            const selectAll = document.getElementById("select-all-job-filter-reviews");
+            if (!selectAll) {
+                return;
+            }
+            const checkboxes = Array.from(document.querySelectorAll('input[name="review_id"]'));
+            function syncSelectAll() {
+                const checkedCount = checkboxes.filter((checkbox) => checkbox.checked).length;
+                selectAll.checked = checkboxes.length > 0 && checkedCount === checkboxes.length;
+                selectAll.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+            }
+            selectAll.addEventListener("change", function () {
+                checkboxes.forEach((checkbox) => {
+                    checkbox.checked = selectAll.checked;
+                });
+                syncSelectAll();
+            });
+            checkboxes.forEach((checkbox) => checkbox.addEventListener("change", syncSelectAll));
+            syncSelectAll();
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+Django>=4.2,<6
+python-dotenv
+requests
+openai
+pypdf
+rapidfuzz
+whitenoise
+gunicorn
+streamlit

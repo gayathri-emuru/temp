@@ -1,0 +1,1682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pipeline Dashboard</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --panel: #ffffff;
+            --line: #d9e0ea;
+            --text: #1f2937;
+            --muted: #667085;
+            --blue: #1f6feb;
+            --blue-dark: #1757b8;
+            --green: #157347;
+            --red: #b42318;
+            --amber: #9a6700;
+            --ink: #111827;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 22px; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+        h1 { margin: 0 0 6px 0; font-size: 26px; }
+        h2 { margin: 0 0 12px 0; font-size: 18px; }
+        h3 { margin: 18px 0 8px 0; font-size: 15px; }
+        a { color: var(--blue); }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid var(--line); padding: 8px; font-size: 13px; vertical-align: top; }
+        th { background: #eef2f7; text-align: left; color: #344054; }
+        pre { background: #111827; color: #f3f4f6; padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+        details { margin-top: 12px; }
+        summary { cursor: pointer; color: var(--ink); font-size: 14px; font-weight: 700; }
+        input[type="text"], input[type="number"], textarea, select {
+            width: 100%; border: 1px solid #b8c2d1; border-radius: 6px; padding: 9px; font-size: 14px;
+        }
+        input[type="date"] {
+            min-height: 38px; border: 1px solid #b8c2d1; border-radius: 6px; padding: 7px 10px;
+            font: inherit; color: var(--text); background: #ffffff;
+        }
+        textarea { min-height: 160px; resize: vertical; font-family: Consolas, monospace; }
+        .topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+        .subtle { color: var(--muted); font-size: 13px; }
+        .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+        .bulk-map-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+        .wide { grid-column: 1 / -1; }
+        .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+        .panel.tight { padding: 12px 14px; }
+        .section-stack { display: grid; gap: 14px; }
+        .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+        .metric-section-label { margin: 12px 0 8px; font-size: 13px; font-weight: 700; color: #344054; }
+        .status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+        .metric { border: 1px solid var(--line); border-radius: 6px; padding: 10px; background: #fbfcff; min-height: 72px; }
+        .metric .value { display: block; font-size: 22px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+        .metric .label { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
+        .plain-status { border: 1px solid #b7d3ff; background: #f3f8ff; border-radius: 8px; padding: 12px; margin-top: 12px; line-height: 1.45; }
+        .plain-status strong { color: var(--ink); }
+        .plain-list { margin: 8px 0 0; padding-left: 18px; line-height: 1.5; }
+        .plain-list li { margin: 3px 0; }
+        .apollo-result-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+        .apollo-result-grid .metric { background: #ffffff; }
+        .reason-cell { max-width: 520px; line-height: 1.4; }
+        .title-samples { margin: 0; padding-left: 18px; line-height: 1.45; min-width: 220px; }
+        .title-samples li { margin: 2px 0; }
+        .title-count { color: #64748b; font-size: 12px; white-space: nowrap; }
+        .action-copy { font-size: 15px; line-height: 1.5; margin: 0 0 12px; }
+        .step-card { border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #fbfcff; }
+        .step-card h3 { margin-top: 0; }
+        .step-card.active { border-color: #f2c94c; background: #fffaf0; }
+        .step-card.clear { border-color: #a7d7bd; background: #f3fbf6; }
+        .step-card.blocked { border-color: #f5a7a0; background: #fff7f6; }
+        .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        button, .button-link {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-height: 38px; padding: 8px 12px; border-radius: 6px; border: 0;
+            background: var(--blue); color: white; text-decoration: none; cursor: pointer; font-size: 14px;
+        }
+        button:hover, .button-link:hover { background: var(--blue-dark); }
+        button.secondary { background: #334155; }
+        button.secondary:hover { background: #1f2937; }
+        button.safe { background: var(--green); }
+        button.warn { background: var(--amber); }
+        button.inline-action { min-height: 0; padding: 3px 7px; border-radius: 4px; font-size: 12px; vertical-align: baseline; }
+        .people-search-link {
+            min-height: 30px;
+            padding: 5px 9px;
+            font-size: 12px;
+            background: #14532d;
+            border: 1px solid #4ade80;
+            color: #ffffff;
+        }
+        .people-search-link:hover { background: #166534; }
+        .people-search-link.fallback {
+            background: #2563eb;
+            border-color: #2563eb;
+        }
+        .people-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+            gap: 6px;
+            margin-top: 6px;
+            max-height: 260px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .people-card {
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 7px 8px;
+            background: #ffffff;
+            min-width: 0;
+        }
+        .people-card strong {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .people-meta {
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.25;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .people-email {
+            font-family: Consolas, monospace;
+            font-size: 11px;
+            color: var(--green);
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pill { display: inline-block; padding: 3px 7px; border-radius: 999px; background: #eef2ff; color: #3441a3; font-size: 12px; font-weight: 700; }
+        .pill.green { background: #e7f6ee; color: #137447; }
+        .pill.red { background: #fee4e2; color: #b42318; }
+        .pill.amber { background: #fff4d6; color: #7a5200; }
+        .ok { color: var(--green); font-weight: 700; }
+        .bad { color: var(--red); font-weight: 700; }
+        .domain-input { min-width: 180px; font-weight: 700; color: var(--green); padding: 7px 8px; }
+        .messages { margin: 0 0 16px 0; }
+        .message { padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; background: #e7f6ee; border: 1px solid #a7d7bd; }
+        .message.error { background: #fee4e2; border-color: #f5a7a0; }
+        .hidden-copy { position: absolute; left: -9999px; top: -9999px; white-space: pre; }
+        .nowrap { white-space: nowrap; }
+        .settings-grid { display: grid; grid-template-columns: minmax(180px, 240px) minmax(180px, 240px) auto; gap: 12px; align-items: end; }
+        .email-model-grid { display: grid; grid-template-columns: minmax(150px, 190px) minmax(190px, 260px) minmax(190px, 260px) auto; gap: 12px; align-items: end; }
+.batch-date-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+.batch-date-form label { display: inline-grid; gap: 4px; }
+.recent-date-links { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.company-search-form { display: grid; grid-template-columns: minmax(260px, 1fr) auto; gap: 10px; align-items: end; }
+.search-result-table .job-cell { min-width: 240px; }
+.search-result-table .company-cell { min-width: 180px; }
+.search-result-table .recipient-list { margin: 0; padding-left: 16px; }
+.search-result-table .description-preview { max-width: 420px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.job-id-workbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+    border: 1px solid #bfd0ea;
+    background: #f5f9ff;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 16px;
+}
+.job-id-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 16px;
+    font-weight: 700;
+}
+.job-id-progress strong { font-size: 20px; color: var(--ink); }
+.job-id-table {
+    table-layout: fixed;
+}
+.job-id-table th,
+.job-id-table td {
+    padding: 7px 10px;
+    font-size: 16px;
+    line-height: 1.15;
+}
+.job-id-table th {
+    font-size: 16px;
+}
+.job-id-table tr.current-job-row {
+    background: #fff8d8;
+    outline: 3px solid #f2c94c;
+    outline-offset: -3px;
+}
+.job-id-table tr.done-job-row {
+    background: #f3fbf6;
+}
+.job-id-table tr.opened-job-row {
+    box-shadow: inset 6px 0 0 #2563eb;
+}
+.job-id-table tr.opened-job-row:not(.current-job-row):not(.done-job-row) {
+    background: #eff6ff;
+}
+.job-id-table tr.duplicate-job-id-row {
+    background: #fff1f2;
+    box-shadow: inset 6px 0 0 #dc2626;
+}
+.job-id-work-cell {
+    white-space: nowrap;
+}
+.job-id-work-cell label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+}
+.job-id-work-cell input[type="radio"],
+.job-id-work-cell input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+.job-id-company {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.job-id-title {
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.job-id-meta {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.job-id-link-list a {
+    display: inline-block;
+    margin: 1px 10px 1px 0;
+    font-size: 16px;
+    font-weight: 700;
+}
+.job-id-link-list a.opened-job-link {
+    color: #7c3aed;
+    background: #f3e8ff;
+    border: 1px solid #c4b5fd;
+    border-radius: 6px;
+    padding: 2px 6px;
+    text-decoration: none;
+}
+.job-id-input {
+    min-height: 44px;
+    font-size: 17px !important;
+    font-weight: 700;
+}
+.job-id-admin-link {
+    font-size: 16px;
+    font-weight: 700;
+}
+.alert { display: none; margin-top: 10px; border: 1px solid #fedf89; background: #fffaeb; color: #93370d; border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.4; }
+.alert.show { display: block; }
+@media (max-width: 1100px) {
+    .grid, .metric-grid, .status-grid, .settings-grid, .email-model-grid, .bulk-map-grid, .company-search-form { grid-template-columns: 1fr; }
+    .topline { align-items: flex-start; flex-direction: column; }
+    .job-id-table { table-layout: auto; }
+    .job-id-company, .job-id-title, .job-id-meta { white-space: normal; }
+}
+    </style>
+</head>
+<body>
+<div class="topline">
+    <div>
+        <h1>Pipeline Dashboard</h1>
+        <div class="subtle">Status first. Expand a section only when you need details.</div>
+    </div>
+    <div class="actions">
+        <a class="button-link" href="{% url 'operations_dashboard' %}">Operations</a>
+        <a class="button-link" href="{% url 'live_company_reply_dashboard' %}{% if batch %}?batch_date={{ batch.batch_date|date:'Y-m-d' }}{% endif %}">Live Reply Stops</a>
+        <a class="button-link" href="{% url 'manual_linkedin_flow' %}">Manual LinkedIn Flow</a>
+        <a class="button-link" href="{% url 'manual_dice_flow' %}">Manual Dice Flow</a>
+        <a class="button-link" href="{% url 'linkedin_post_preview' %}">LinkedIn Post Outreach</a>
+        <a class="button-link" href="{% url 'manual_bulk_email' %}">Custom Email Sender</a>
+        <a class="button-link" href="{% url 'consultancy_outreach' %}">Consultancy Outreach</a>
+        <a class="button-link" href="{% url 'read_only_review_dashboard' %}{% if batch %}?batch_date={{ batch.batch_date|date:'Y-m-d' }}{% endif %}">Read-only Review</a>
+        <a class="button-link" href="{% url 'send_control_dashboard' %}{% if batch %}?batch_date={{ batch.batch_date|date:'Y-m-d' }}{% endif %}">Send Control</a>
+        <a class="button-link" href="{% url 'inbox_monitor_dashboard' %}">Inbox Monitor</a>
+        <form method="post" action="{% url 'inbox_monitor_scan_now' %}" style="margin:0;">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit">Scan Inboxes</button>
+        </form>
+    </div>
+</div>
+
+<div class="panel tight" style="margin-bottom:16px;">
+    <h2 style="margin-bottom:8px;">Pipeline Controls</h2>
+    <form method="post" action="{% url 'pipeline_set_controls_view' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="settings-grid">
+            <label>
+                Company cooldown days
+                <input id="global-cooldown" type="number" name="company_cooldown_days" value="{{ company_cooldown_days }}" min="0" max="365">
+            </label>
+            <label>
+                Max people per company
+                <input type="number" name="max_people_per_company" value="{{ max_people_per_company }}" min="1" max="100">
+            </label>
+            <button type="submit" class="secondary">Save Controls</button>
+        </div>
+    </form>
+    <div class="subtle" style="margin-top:8px;">Shared with Manual LinkedIn and Dice flows. Cooldown controls import skips; max people controls Apollo data/ML contact fetch, selected recipients, and sending.</div>
+    <form method="post" action="{% url 'set_email_generation_model_view' %}" style="margin-top:14px;">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="email-model-grid">
+            <label>
+                Email AI provider
+                <select name="email_ai_provider">
+                    <option value="openai" {% if email_ai_settings.provider == "openai" %}selected{% endif %}>OpenAI</option>
+                    <option value="anthropic" {% if email_ai_settings.provider == "anthropic" %}selected{% endif %}>Claude</option>
+                </select>
+            </label>
+            <label>
+                OpenAI email model
+                <input type="text" name="openai_email_model" value="{{ email_ai_settings.openai_model }}" list="openai-email-model-options">
+            </label>
+            <label>
+                Claude email model
+                <input type="text" name="anthropic_email_model" value="{{ email_ai_settings.anthropic_model }}" list="anthropic-email-model-options">
+            </label>
+            <button type="submit" class="secondary">Save Email Model</button>
+        </div>
+        <datalist id="openai-email-model-options">
+            {% for model in email_ai_settings.openai_model_options %}
+                <option value="{{ model }}">
+            {% endfor %}
+        </datalist>
+        <datalist id="anthropic-email-model-options">
+            {% for model in email_ai_settings.anthropic_model_options %}
+                <option value="{{ model }}">
+            {% endfor %}
+        </datalist>
+        <div class="subtle" style="margin-top:8px;">
+            Email generation only. Current: <strong>{{ email_ai_settings.provider_label }}</strong> using <strong>{{ email_ai_settings.model }}</strong>.
+            OpenAI key: {% if email_ai_settings.openai_configured %}<span class="ok">configured</span>{% else %}<span class="bad">missing OPENAI_API_KEY</span>{% endif %}.
+            Claude key: {% if email_ai_settings.anthropic_configured %}<span class="ok">configured</span>{% else %}<span class="bad">missing ANTHROPIC_API_KEY</span>{% endif %}.
+        </div>
+    </form>
+</div>
+
+{% if messages %}
+<div class="messages">
+    {% for message in messages %}
+        <div class="message {% if message.tags == 'error' %}error{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="panel tight" style="margin-bottom:16px;">
+    <h2 style="margin-bottom:8px;">Batch Date</h2>
+    <form method="get" action="{% url 'pipeline_dashboard' %}" class="batch-date-form">
+        <label class="subtle" for="pipeline_batch_date">
+            <strong>Date</strong>
+            <input id="pipeline_batch_date" type="date" name="batch_date" value="{{ selected_batch_date }}" list="pipeline_available_batch_dates">
+        </label>
+        <datalist id="pipeline_available_batch_dates">
+            {% for row in available_batches %}
+                <option value="{{ row.batch.batch_date|date:'Y-m-d' }}">{{ row.batch.batch_date }} - {{ row.job_count }} jobs</option>
+            {% endfor %}
+        </datalist>
+        <button type="submit" class="secondary">View Date</button>
+        {% if batch %}
+            <a class="button-link secondary" href="{% url 'read_only_review_dashboard' %}?batch_date={{ selected_batch_date }}">Review This Date</a>
+            <a class="button-link secondary" href="{% url 'send_control_dashboard' %}?batch_date={{ selected_batch_date }}">Send This Date</a>
+        {% endif %}
+    </form>
+    <div class="recent-date-links subtle">
+        <strong>Recent available dates:</strong>
+        {% for row in recent_available_batches %}
+            <a class="pill {% if batch and row.batch.id == batch.id %}green{% endif %}" href="{% url 'pipeline_dashboard' %}?batch_date={{ row.batch.batch_date|date:'Y-m-d' }}">
+                {{ row.batch.batch_date }}: {{ row.job_count }} jobs
+            </a>
+        {% empty %}
+            <span>No populated dates yet.</span>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="panel tight" style="margin-bottom:16px;">
+    <h2 style="margin-bottom:8px;">Global Company Search</h2>
+    <form method="get" action="{% url 'pipeline_dashboard' %}" class="company-search-form">
+        {% if selected_batch_date %}<input type="hidden" name="batch_date" value="{{ selected_batch_date }}">{% endif %}
+        <label class="subtle" for="company_search">
+            <strong>Company regex</strong>
+            <input id="company_search" type="text" name="company_search" value="{{ company_search.pattern }}" placeholder="Example: cavallo|aaon|sub.?zero|northwestern">
+        </label>
+        <button type="submit" class="secondary">Search Jobs</button>
+    </form>
+    <div class="subtle" style="margin-top:8px;">Searches every stored job by raw and normalized company name. Regex is case-insensitive.</div>
+
+    {% if company_search.error %}
+        <div class="message error" style="margin-top:12px;">{{ company_search.error }}</div>
+    {% elif company_search.pattern %}
+        <div class="metric-grid" style="margin-top:12px;">
+            <div class="metric"><span class="value">{{ company_search.total_matches }}</span><span class="label">Matching Jobs</span></div>
+            <div class="metric"><span class="value">{{ company_search.sent_matches }}</span><span class="label">Real Initial Sent</span></div>
+            <div class="metric"><span class="value">{{ company_search.approved_matches }}</span><span class="label">Approved</span></div>
+            <div class="metric"><span class="value">{{ company_search.generated_matches }}</span><span class="label">Generated</span></div>
+            <div class="metric"><span class="value">{{ company_search.displayed_matches }}</span><span class="label">Displayed</span></div>
+            <div class="metric"><span class="value">{{ company_search.limit }}</span><span class="label">Display Limit</span></div>
+        </div>
+        <div class="table-wrap" style="overflow-x:auto; margin-top:12px;">
+            <table class="search-result-table">
+                <thead>
+                    <tr>
+                        <th>Job</th>
+                        <th>Company</th>
+                        <th>Status</th>
+                        <th>Email State</th>
+                        <th>Recipients</th>
+                        <th>Links</th>
+                        <th>Description Preview</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in company_search.rows %}
+                    <tr>
+                        <td class="job-cell">
+                            <a href="/admin/core/jobposting/{{ row.job_id }}/change/" target="_blank" rel="noopener noreferrer">Job {{ row.job_id }}</a>
+                            <div><strong>{{ row.title }}</strong></div>
+                            <div class="subtle">{{ row.location|default:"-" }} | {{ row.batch_date|date:"Y-m-d" }}</div>
+                            {% if row.subject %}<div class="subtle">Subject: {{ row.subject }}</div>{% endif %}
+                        </td>
+                        <td class="company-cell">
+                            <strong>{{ row.company }}</strong>
+                            <div class="subtle">{{ row.normalized_company }}</div>
+                            {% if row.recruiter_lead_name %}
+                                <div class="subtle">Lead: {{ row.recruiter_lead_name }}{% if row.recruiter_lead_title %} - {{ row.recruiter_lead_title }}{% endif %}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="pill">{{ row.status }}</span>
+                            {% if row.real_sent %}<span class="pill green">applied/sent</span>{% endif %}
+                            {% if row.approved %}<span class="pill green">approved</span>{% endif %}
+                            {% if row.generated %}<span class="pill">generated</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if row.real_sent %}
+                                <strong class="ok">{{ row.sent_count }} sent</strong>
+                                {% if row.latest_sent_at %}<div class="subtle">{{ row.latest_sent_at|date:"Y-m-d H:i" }}</div>{% endif %}
+                            {% else %}
+                                <span class="subtle">No real initial send logged</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.sent_recipients %}
+                                <div class="subtle"><strong>Sent to</strong></div>
+                                <ul class="recipient-list">
+                                    {% for email in row.sent_recipients %}
+                                        <li>{{ email }}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% elif row.selected_targets %}
+                                <div class="subtle"><strong>Selected</strong></div>
+                                <ul class="recipient-list">
+                                    {% for target in row.selected_targets %}
+                                        <li>{{ target.name|default:"-" }} &lt;{{ target.email }}&gt;{% if target.recruiter_title %}<div class="subtle">{{ target.recruiter_title }}</div>{% endif %}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <span class="subtle">No selected recipient</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.linkedin_url %}<a href="{{ row.linkedin_url }}" target="_blank" rel="noopener noreferrer">Job</a>{% endif %}
+                            {% if row.apply_url and row.apply_url != row.linkedin_url %}<br><a href="{{ row.apply_url }}" target="_blank" rel="noopener noreferrer">Apply</a>{% endif %}
+                        </td>
+                        <td><div class="description-preview">{{ row.description_preview }}</div></td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7">No jobs matched this company regex.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+
+{% if not batch %}
+    <div class="panel">
+        <h2>No Batch Yet</h2>
+        <p class="subtle">No active job batch was found. Use Manual LinkedIn Flow or Manual Dice Flow to add jobs, then return here.</p>
+        <a class="button-link" href="{% url 'manual_linkedin_flow' %}">Open Manual LinkedIn Flow</a>
+        <a class="button-link" href="{% url 'manual_dice_flow' %}">Open Manual Dice Flow</a>
+    </div>
+{% else %}
+
+<div class="section-stack">
+    <div class="panel">
+        <h2>Today's Batch</h2>
+        <div class="subtle">
+            Date: <strong>{{ batch.batch_date }}</strong>
+            | Email sending switch: <strong>{% if email_sending_enabled %}ON{% else %}OFF{% endif %}</strong>
+        </div>
+        <div class="metric-grid" style="margin-top:12px;">
+            <div class="metric"><span class="value">{{ metrics.total_jobs }}</span><span class="label">Jobs Imported</span></div>
+            <div class="metric"><span class="value">{{ metrics.ready_to_send }}</span><span class="label">Can Send Now</span></div>
+            <div class="metric"><span class="value">{{ blockers.jobs_missing_recipients }}</span><span class="label">Need People</span></div>
+            <div class="metric"><span class="value">{{ metrics.ready_to_generate }}</span><span class="label">Can Write Emails</span></div>
+            <div class="metric"><span class="value">{{ blockers.jobs_needing_approval }}</span><span class="label">Need Approval</span></div>
+            <div class="metric"><span class="value">{{ metrics.approved_jobs }}</span><span class="label">Already Approved</span></div>
+        </div>
+        <div class="plain-status">
+            <strong>Plain English:</strong>
+            {{ metrics.total_jobs }} jobs are in this batch.
+            {{ metrics.ready_to_send }} can be sent right now.
+            {{ blockers.jobs_missing_recipients }} still need someone to email.
+            {{ metrics.ready_to_generate }} already have people and can get email drafts now.
+            {{ blockers.jobs_needing_approval }} drafts are waiting for your approval.
+        </div>
+        <details>
+            <summary>Show technical status counts and batch notes</summary>
+            <div class="actions" style="margin-top:12px;">
+                {% for status, count in metrics.status_counts.items %}
+                    <span class="pill">{{ status }}: {{ count }}</span>
+                {% endfor %}
+            </div>
+            {% if batch.notes %}
+                <pre>{{ batch.notes }}</pre>
+            {% endif %}
+        </details>
+    </div>
+
+    <div class="grid">
+        <div class="panel">
+            <h2>What To Do Next</h2>
+            {% if blockers.companies_missing_domain %}
+                <p class="action-copy"><span class="pill red">Start here</span> Add the website domain for {{ blockers.companies_missing_domain }} compan{{ blockers.companies_missing_domain|pluralize:"y,ies" }}. Apollo cannot find people there until this is filled.</p>
+                <a href="#domains">Fix Missing Domains</a>
+            {% elif blockers.companies_ready_for_apollo_topup %}
+                <p class="action-copy"><span class="pill amber">Next</span> Run people lookup for {{ blockers.companies_ready_for_apollo_topup }} companies. This is the main reason more jobs are not ready to send yet.</p>
+                <a href="#recruiters">Find People To Email</a>
+            {% elif metrics.ready_to_generate %}
+                <p class="action-copy"><span class="pill amber">Next</span> Write email drafts for {{ metrics.ready_to_generate }} jobs. These jobs already have people selected.</p>
+                <a href="#emails">Generate Email Drafts</a>
+            {% elif blockers.jobs_needing_approval %}
+                <p class="action-copy"><span class="pill amber">Review</span> Approve {{ blockers.jobs_needing_approval }} generated emails before they can be sent.</p>
+                <a href="{% url 'read_only_review_dashboard' %}?batch_date={{ batch.batch_date|date:'Y-m-d' }}">Review And Approve</a>
+            {% elif metrics.ready_to_send %}
+                <p class="action-copy"><span class="pill green">Ready</span> {{ metrics.ready_to_send }} jobs are ready. Open Send Control when you want to send them.</p>
+                <a href="{% url 'send_control_dashboard' %}?batch_date={{ batch.batch_date|date:'Y-m-d' }}">Open Send Control</a>
+            {% else %}
+                <p class="action-copy"><span class="pill green">Clear</span> Nothing urgent is queued for this batch.</p>
+            {% endif %}
+        </div>
+
+        <div class="panel">
+            <h2>Where Things Are Stuck</h2>
+            <div class="status-grid">
+                <div class="step-card {% if blockers.companies_missing_domain %}blocked{% else %}clear{% endif %}">
+                    <h3>1. Company Domains</h3>
+                    <span class="value">{{ blockers.companies_missing_domain }}</span>
+                    <div class="subtle">companies still need a website domain before Apollo can search</div>
+                </div>
+                <div class="step-card {% if blockers.companies_ready_for_apollo_topup %}active{% elif blockers.jobs_missing_recipients %}blocked{% else %}clear{% endif %}">
+                    <h3>2. People To Email</h3>
+                    <span class="value">{{ blockers.jobs_missing_recipients }}</span>
+                    <div class="subtle">jobs still need at least one selected email recipient</div>
+                </div>
+                <div class="step-card {% if metrics.ready_to_generate %}active{% elif blockers.jobs_missing_generated_email %}blocked{% else %}clear{% endif %}">
+                    <h3>3. Email Drafts</h3>
+                    <span class="value">{{ blockers.jobs_missing_generated_email }}</span>
+                    <div class="subtle">{{ metrics.ready_to_generate }} of these can be written right now</div>
+                </div>
+                <div class="step-card {% if metrics.ready_to_send %}active{% elif blockers.jobs_needing_approval %}blocked{% else %}clear{% endif %}">
+                    <h3>4. Review And Send</h3>
+                    <span class="value">{{ metrics.ready_to_send }}</span>
+                    <div class="subtle">ready now; {{ blockers.jobs_needing_approval }} more need approval</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel wide">
+        <h2>Why More Jobs Are Not Ready Yet</h2>
+        <table>
+            <tr><th>What this means</th><th class="nowrap">Count</th><th>What you should do</th></tr>
+            <tr><td>Company website domain is missing</td><td>{{ blockers.companies_missing_domain }}</td><td>Add the domain so Apollo can search people at that company.</td></tr>
+            <tr><td>Company is ready for people lookup</td><td>{{ blockers.companies_ready_for_apollo_topup }}</td><td>Run Apollo or targeted lookup to find data/ML/director contacts.</td></tr>
+            <tr><td>Company has no usable person selected</td><td>{{ blockers.companies_zero_usable_recipients }}</td><td>Find at least one email recipient before the job can move forward.</td></tr>
+            <tr><td>Job has no cold email draft</td><td>{{ blockers.jobs_missing_generated_email }}</td><td>Generate drafts after recipients are selected.</td></tr>
+            <tr><td>Email draft exists but is not approved</td><td>{{ blockers.jobs_needing_approval }}</td><td>Open review, approve the good ones, then they can send.</td></tr>
+            <tr><td>Job is fully ready</td><td>{{ metrics.ready_to_send }}</td><td>Open Send Control when you are ready to send.</td></tr>
+        </table>
+    </div>
+
+    <div class="panel wide" id="domains">
+        <h2>Step 1: Fix Missing Domains</h2>
+        <p class="subtle">
+            These are the companies where Apollo is blocked because the company website domain is missing or unusable.
+            Current blockers: <strong>{{ missing_domain_rows|length }}</strong> companies,
+            <strong>{{ missing_domain_job_count }}</strong> jobs.
+        </p>
+        {% if missing_domain_rows %}
+            <div class="actions">
+                <button type="button" class="secondary" data-copy-target="domain-template">Copy Domain JSON</button>
+                <button type="button" class="secondary" data-copy-target="domain-names">Copy Company Names</button>
+                <form method="post" action="{% url 'pipeline_delete_latest_batch_missing_domain_jobs_view' %}" style="display:inline;"
+                      onsubmit="return confirm('Delete only selected-batch jobs with no usable domain and no named lead? This does not delete company records.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                    <button type="submit" class="warn">Delete Safe Missing-Domain Jobs</button>
+                </form>
+                <span class="subtle" id="copy-status" aria-live="polite"></span>
+            </div>
+            <details open>
+                <summary>Apply missing domains</summary>
+                <pre id="domain-template">{{ domain_template_text }}</pre>
+                <pre id="domain-names" class="hidden-copy">{{ company_names_text }}</pre>
+                <form method="post" action="{% url 'pipeline_apply_latest_batch_domains_view' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                    <label for="mapping_json"><strong>Domain JSON</strong></label>
+                    <textarea id="mapping_json" name="mapping_json">{{ domain_template_text }}</textarea>
+                    <button type="submit" class="safe">Apply Domains</button>
+                </form>
+            </details>
+            <details>
+                <summary>Show missing-domain companies</summary>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>Admin</th>
+                            <th>Jobs</th>
+                            <th>Sample Job</th>
+                            <th>Location</th>
+                            <th>Current Domain</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in missing_domain_rows %}
+                        <tr>
+                            <td>{{ row.normalized_name }}</td>
+                            <td>
+                                <a href="/admin/core/company/{{ row.company.id }}/change/" target="_blank" rel="noopener noreferrer">Company</a>
+                                <span style="display:inline-block; width:14px;"></span>
+                                <a href="/admin/core/jobposting/{{ row.sample_job_id }}/change/" target="_blank" rel="noopener noreferrer">Edit Job</a>
+                            </td>
+                            <td>{{ row.job_count }}</td>
+                            <td>
+                                {% if row.sample_job_url %}
+                                    <a href="{{ row.sample_job_url }}" target="_blank" rel="noopener noreferrer">Job {{ row.sample_job_id }} - {{ row.sample_job_title }}</a>
+                                {% else %}
+                                    Job {{ row.sample_job_id }} - {{ row.sample_job_title }}
+                                {% endif %}
+                            </td>
+                            <td>{{ row.sample_location|default:"-" }}</td>
+                            <td><span class="bad">{{ row.domain|default:"missing" }}</span></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </details>
+        {% else %}
+            <p><span class="pill green">Clear</span> No domain blockers in the selected batch.</p>
+        {% endif %}
+        {% if pipeline_domain_apply_result %}
+            <details open><summary>Domain apply result</summary><pre>{{ pipeline_domain_apply_result }}</pre></details>
+        {% endif %}
+        {% if pipeline_delete_missing_domain_jobs_result %}
+            <details open><summary>Missing-domain job delete result</summary><pre>{{ pipeline_delete_missing_domain_jobs_result }}</pre></details>
+        {% endif %}
+        {% if pipeline_delete_single_job_result %}
+            <details open><summary>Single job delete result</summary><pre>{{ pipeline_delete_single_job_result }}</pre></details>
+        {% endif %}
+    </div>
+
+    <div class="panel wide" id="manual-job-ids">
+        <h2>Step 1B: Add Website Job IDs</h2>
+        <p class="subtle">
+            Manual LinkedIn and Dice jobs in this selected batch. Paste the job ID from the company website/application page when you have it.
+            Emails will use the job ID when this box is filled; blank boxes will fall back to the job URL.
+        </p>
+        {% if manual_job_id_rows %}
+            <form method="post" action="{% url 'pipeline_update_manual_job_ids_view' %}">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <div class="job-id-workbar" data-job-id-workbar data-batch-date="{{ selected_batch_date }}">
+                    <div class="actions">
+                        <button type="submit" class="safe">Save Job IDs</button>
+                        <button type="button" class="secondary" data-clear-job-id-progress>Clear Row Markers</button>
+                    </div>
+                    <div class="job-id-progress" aria-live="polite">
+                        <span>Completed <strong data-job-id-completed>0</strong> / <strong data-job-id-total>{{ manual_job_id_rows|length }}</strong></span>
+                        <span class="pill amber" data-current-job-label>No current job selected</span>
+                        <span class="subtle">{{ manual_job_id_missing_count }} missing database IDs.</span>
+                        {% if manual_job_id_duplicate_count %}
+                            <span class="pill red">{{ manual_job_id_duplicate_count }} duplicate saved IDs</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <table class="job-id-table">
+                    <colgroup>
+                        <col style="width:8%;">
+                        <col style="width:7%;">
+                        <col style="width:38%;">
+                        <col style="width:12%;">
+                        <col style="width:28%;">
+                        <col style="width:7%;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Work</th>
+                            <th>Source</th>
+                            <th>Job</th>
+                            <th>Open Link</th>
+                            <th>Website Job ID</th>
+                            <th>Admin</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in manual_job_id_rows %}
+                        <tr data-job-id-row data-job-pk="{{ row.job_id }}" data-job-number="{{ forloop.counter }}" class="{% if row.manual_job_reference_duplicate %}duplicate-job-id-row{% endif %}">
+                            <td class="job-id-work-cell">
+                                <div class="subtle"><strong>#{{ forloop.counter }}</strong></div>
+                                <label>
+                                    <input type="radio" name="current_manual_job_id_row" value="{{ row.job_id }}" data-current-job-radio>
+                                    Current
+                                </label>
+                                <label>
+                                    <input type="checkbox" data-job-done-checkbox>
+                                    Done
+                                </label>
+                            </td>
+                            <td><span class="pill">{{ row.source_platform }}</span></td>
+                            <td>
+                                <div class="job-id-company" title="{{ row.company }}">{{ row.company }}</div>
+                                <div class="job-id-title" title="{{ row.title }}">{{ row.title }}</div>
+                                <div class="job-id-meta">{{ row.location|default:"-" }} | Job {{ row.job_id }}</div>
+                            </td>
+                            <td class="job-id-link-list">
+                                {% if row.linkedin_url %}
+                                    <a href="{{ row.linkedin_url }}" target="_blank" rel="noopener noreferrer" data-job-open-link="job">Open job</a>
+                                {% endif %}
+                                {% if row.apply_url and row.apply_url != row.linkedin_url %}
+                                    <a href="{{ row.apply_url }}" target="_blank" rel="noopener noreferrer" data-job-open-link="apply">Open apply</a>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <input
+                                    class="job-id-input"
+                                    type="text"
+                                    name="manual_job_reference_id_{{ row.job_id }}"
+                                    value="{{ row.manual_job_reference_id }}"
+                                    data-job-id-input
+                                    placeholder="Example: 18377 or REQ-2026-1042">
+                                {% if row.manual_job_reference_duplicate %}
+                                    <div class="bad" style="font-size:13px; margin-top:4px;">Duplicate ID. Fix before sending.</div>
+                                {% endif %}
+                            </td>
+                            <td><a class="job-id-admin-link" href="/admin/core/jobposting/{{ row.job_id }}/change/" target="_blank" rel="noopener noreferrer">Edit</a></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </form>
+        {% else %}
+            <p><span class="pill green">Clear</span> No manual LinkedIn or Dice jobs in this selected batch.</p>
+        {% endif %}
+        {% if pipeline_manual_job_id_result %}
+            <details open><summary>Manual job ID save result</summary><pre>{{ pipeline_manual_job_id_result }}</pre></details>
+        {% endif %}
+    </div>
+
+    <div class="panel wide" id="recruiters">
+        <h2>Step 2: Find People To Email</h2>
+        <div class="metric-section-label">Company Apollo Status</div>
+        <div class="metric-grid">
+            <div class="metric"><span class="value">{{ company_people_summary.companies_needing_topup }}</span><span class="label">Companies Below {{ company_people_summary.max_people_per_company }} People</span></div>
+            <div class="metric"><span class="value">{{ company_people_summary.companies_with_zero_people }}</span><span class="label">Companies With 0 People</span></div>
+            <div class="metric"><span class="value">{{ company_people_summary.companies_partial_needing_topup }}</span><span class="label">Partial Companies Need More</span></div>
+            <div class="metric"><span class="value">{{ company_people_summary.companies_full_or_capped }}</span><span class="label">Companies Already Full Or Capped</span></div>
+            <div class="metric"><span class="value">{{ company_people_summary.company_apollo_slots_needed }}</span><span class="label">More People Needed To Reach {{ company_people_summary.max_people_per_company }}</span></div>
+            <div class="metric"><span class="value">{{ company_people_summary.exact_person_jobs_ready }}</span><span class="label">LinkedIn Named-Person Jobs To Try First</span></div>
+        </div>
+        <div class="metric-section-label">Job Readiness And Apollo History</div>
+        <div class="metric-grid">
+            <div class="metric"><span class="value">{{ metrics.jobs_with_targets }}</span><span class="label">Jobs With At Least 1 Person</span></div>
+            <div class="metric"><span class="value">{{ blockers.jobs_missing_recipients }}</span><span class="label">Jobs Still Missing A Person</span></div>
+            <div class="metric"><span class="value">{{ company_people_summary.selected_people_now }}</span><span class="label">Selected Unsent People In This Batch</span></div>
+            <div class="metric"><span class="value">{{ apollo_credit_ceiling }}</span><span class="label">Maximum Apollo Credits If Run</span></div>
+            <div class="metric"><span class="value">{{ apollo_batch_totals.total_verified_emails_found }}</span><span class="label">Verified Apollo Emails Accepted</span></div>
+            <div class="metric"><span class="value">{{ apollo_batch_totals.total_unverified_emails_found }}</span><span class="label">Non-Verified Apollo Emails Rejected</span></div>
+            <div class="metric"><span class="value">{{ apollo_batch_totals.total_credits_consumed }}</span><span class="label">Apollo Credits Used For This Batch</span></div>
+        </div>
+        <details open>
+            <summary>Best option: choose exact people first</summary>
+            <p class="subtle">
+                Use the search buttons to find directors, managers, or data/ML leaders. Paste their names here, then fetch exact work emails.
+                If those names do not fill enough slots, the app can fall back to broader Apollo people lookup.
+            </p>
+            <details open>
+                <summary>Bulk mode: paste many companies and names at once</summary>
+                <form method="post" action="{% url 'pipeline_bulk_targeted_people_lookup_view' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                    <div class="bulk-map-grid">
+                        <label>
+                            <strong>Company -> domain</strong>
+                            <textarea name="company_domain_map" style="min-height:220px;">{{ bulk_targeted_company_domain_text }}</textarea>
+                        </label>
+                        <label>
+                            <strong>Domain -> people names to fetch</strong>
+                            <textarea name="domain_people_map" style="min-height:220px;">{{ bulk_targeted_domain_people_text }}</textarea>
+                        </label>
+                    </div>
+                    <input type="hidden" name="allow_regular_fallback" value="1">
+                    <label class="subtle" style="display:block;margin-top:8px;">
+                        <input type="checkbox" name="only_targeted_lookup" value="1">
+                        Only fetch pasted names; skip Apollo fallback
+                    </label>
+                    <div class="subtle" style="margin-top:4px;">
+                        Use this when you want exactly the people you pasted, without filling remaining company slots.
+                    </div>
+                    <div class="actions" style="margin-top:8px;">
+                        <button type="submit" name="action" value="preview" class="secondary">Preview Bulk Lookup</button>
+                        <button
+                            type="submit"
+                            name="action"
+                            value="run"
+                            class="safe"
+                            onclick="return confirm('Run bulk targeted lookup now? Preview first if you changed many rows.');"
+                        >Apply + Fetch</button>
+                    </div>
+                </form>
+                {% if pipeline_bulk_targeted_lookup_result %}
+                    <details open><summary>Bulk targeted lookup result</summary><pre>{{ pipeline_bulk_targeted_lookup_result }}</pre></details>
+                {% endif %}
+            </details>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Company</th>
+                        <th>Open LinkedIn searches</th>
+                        <th>Paste names to fetch</th>
+                        <th>People already found</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in targeted_lookup_rows %}
+                    <tr>
+                        <td>
+                            <strong>{{ row.normalized_name }}</strong>
+                            <br><span class="subtle">{{ row.domain }} | {{ row.usable_recipient_count }} selected | {{ row.open_slots }} open</span>
+                            <br>
+                            {% if row.sample_job_url %}
+                                <a href="{{ row.sample_job_url }}" target="_blank" rel="noopener noreferrer">{{ row.sample_job_title }}</a>
+                            {% else %}
+                                {{ row.sample_job_title }}
+                            {% endif %}
+                            {% if row.job_id %}
+                                <form method="post" action="{% url 'pipeline_delete_single_job_view' %}" style="margin-top:8px;"
+                                      onsubmit="return confirm('Delete this job only? This removes the job and its related generated email/targets, but not the company or recruiters.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                                    <input type="hidden" name="job_id" value="{{ row.job_id }}">
+                                    <button type="submit" class="warn inline-action">Delete This Job</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="actions">
+                                <button
+                                    type="button"
+                                    class="people-search-link"
+                                    data-open-people-links
+                                    data-job-url="{{ row.sample_job_url|default:'' }}"
+                                >Open Job + Data/ML Managers</button>
+                                {% for link in row.search_links %}
+                                    <a class="button-link people-search-link {% if not link.location_scoped %}fallback{% endif %}" href="{{ link.url }}" target="_blank" rel="noopener noreferrer" data-people-label="{{ link.label }}">{{ link.label }}</a>
+                                {% endfor %}
+                            </div>
+                            <div class="subtle" style="margin-top:6px;">
+                                {% if row.search_links.0.location_scoped %}Starts near {{ row.sample_location|default:"the job location" }}.{% else %}Uses a broader search because no location-scoped link is available.{% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <form method="post" action="{% url 'pipeline_targeted_people_lookup_view' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                                <input type="hidden" name="company_id" value="{{ row.company_id }}">
+                                <input type="hidden" name="job_id" value="{{ row.job_id }}">
+                                <textarea name="target_names" placeholder="Jane Doe, Mark Smith" style="min-height:70px;"></textarea>
+                                <label class="subtle" style="display:block;margin-top:8px;">
+                                    Max people for this company
+                                    <input type="number" name="max_people_for_company" value="{{ max_people_per_company }}" min="1" max="{{ max_people_per_company }}" style="max-width:120px;">
+                                </label>
+                                <input type="hidden" name="allow_regular_fallback" value="1">
+                                <label class="subtle" style="display:block;margin-top:8px;">
+                                    <input type="checkbox" name="only_targeted_lookup" value="1">
+                                    Only fetch pasted names; skip Apollo fallback
+                                </label>
+                                <div class="subtle" style="margin-top:6px;">
+                                    If set to 5, this company stops at 5 total usable recipients. If unchecked, fallback may fill only up to this cap.
+                                </div>
+                                <div class="actions" style="margin-top:8px;">
+                                    <button type="submit">Fetch Targeted People</button>
+                                </div>
+                            </form>
+                        </td>
+                        <td>
+                            {% if row.latest_lookup_run %}
+                                <span class="pill {% if row.latest_lookup_run.status == 'success' %}green{% elif row.latest_lookup_run.status == 'failed' %}red{% else %}amber{% endif %}">
+                                    Latest lookup: {{ row.latest_lookup_run.status }}
+                                </span>
+                                <br><span class="subtle">
+                                    found {{ row.latest_lookup_run.emails_found }},
+                                    credits {{ row.latest_lookup_run.credits_consumed }},
+                                    not converted {{ row.latest_lookup_run.credits_not_converted_to_email }}
+                                </span>
+                            {% endif %}
+                            {% if row.latest_lookup_run and row.latest_lookup_run.result_rows %}
+                                <div class="people-card-grid">
+                                {% for item in row.latest_lookup_run.result_rows %}
+                                    {% if item.email %}
+                                        <div class="people-card">
+                                            <strong>
+                                                {% if item.linkedin_url %}
+                                                    <a href="{{ item.linkedin_url }}" target="_blank" rel="noopener noreferrer">{{ item.apollo_name|default:item.name }}</a>
+                                                {% else %}
+                                                    {{ item.apollo_name|default:item.name }}
+                                                {% endif %}
+                                            </strong>
+                                            <div class="people-email">{{ item.email }}</div>
+                                            <div class="people-meta">
+                                                {{ item.title|default:"Title not returned" }}
+                                                <br>{{ item.source }} | {{ item.status }}{% if item.email_status %} | {{ item.email_status }}{% endif %} | {{ item.credits|default:0 }}cr
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                                </div>
+                            {% endif %}
+                            {% if row.fetched_people %}
+                                <div class="subtle" style="margin-top:8px;"><strong>Stored recipients for this company:</strong></div>
+                                <div class="people-card-grid">
+                                {% for person in row.fetched_people %}
+                                    <div class="people-card">
+                                        <strong>
+                                            {% if person.linkedin_url %}
+                                                <a href="{{ person.linkedin_url }}" target="_blank" rel="noopener noreferrer">{{ person.name }}</a>
+                                            {% else %}
+                                                {{ person.name }}
+                                            {% endif %}
+                                        </strong>
+                                        <div class="people-email">{{ person.email }}</div>
+                                        <div class="people-meta">
+                                            {{ person.title|default:"Title not returned" }}
+                                            <br>{{ person.source }}{% if person.email_status %} | {{ person.email_status }}{% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                                </div>
+                            {% elif not row.latest_lookup_run %}
+                                <span class="subtle">No people found yet. Paste names and run lookup.</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4"><span class="ok">Every domain-ready company already has enough people or is not ready for lookup.</span></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </details>
+        {% if pipeline_targeted_lookup_result %}
+            <details open>
+                <summary>Latest targeted lookup result</summary>
+                <table>
+                    <tr><th>Company</th><td>{{ pipeline_targeted_lookup_result.totals.company }}</td></tr>
+                    <tr><th>Names submitted</th><td>{{ pipeline_targeted_lookup_result.totals.names_submitted }}</td></tr>
+                    <tr><th>Targeted local</th><td>{{ pipeline_targeted_lookup_result.totals.targeted_local }}</td></tr>
+                    <tr><th>Targeted Apollo</th><td>{{ pipeline_targeted_lookup_result.totals.targeted_apollo }}</td></tr>
+                    <tr><th>Regular fallback</th><td>{{ pipeline_targeted_lookup_result.totals.regular_fallback }}</td></tr>
+                    <tr><th>Credits</th><td>{{ pipeline_targeted_lookup_result.totals.credits_consumed }}</td></tr>
+                    <tr><th>Current selected recipients</th><td>{{ pipeline_targeted_lookup_result.totals.current_selected_recipients }}</td></tr>
+                    <tr><th>Run log</th><td><code>{{ pipeline_targeted_lookup_result.totals.run_log_path }}</code></td></tr>
+                </table>
+                <table>
+                    <tr>
+                        <th>Name</th>
+                        <th>Title</th>
+                        <th>Location</th>
+                        <th>Email</th>
+                        <th>Source</th>
+                        <th>Status</th>
+                        <th>Reason</th>
+                        <th>Credits</th>
+                    </tr>
+                    {% for item in pipeline_targeted_lookup_result.rows %}
+                        <tr>
+                            <td>
+                                {% if item.linkedin_url %}
+                                    <a href="{{ item.linkedin_url }}" target="_blank" rel="noopener noreferrer">{{ item.apollo_name|default:item.name }}</a>
+                                {% else %}
+                                    {{ item.apollo_name|default:item.name }}
+                                {% endif %}
+                                {% if item.apollo_person_id %}
+                                    <br><span class="subtle">{{ item.apollo_person_id }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.title|default:"-" }}</td>
+                            <td>{{ item.location|default:"-" }}</td>
+                            <td>
+                                {{ item.email|default:"-" }}
+                                {% if item.email_status %}
+                                    <br><span class="subtle">{{ item.email_status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.source }}</td>
+                            <td>{{ item.status }}</td>
+                            <td>{{ item.reason|default:"-" }}</td>
+                            <td>{{ item.credits|default:0 }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            </details>
+        {% endif %}
+
+        <details open>
+            <summary>Companies that still need people</summary>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Company</th>
+                        <th>Domain</th>
+                        <th>People Still Needed</th>
+                        <th>People Already Stored</th>
+                        <th>Sample Job</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in recruiter_ready_rows %}
+                    <tr>
+                        <td>{{ row.normalized_name }}</td>
+                        <td>{{ row.domain|default:"-" }}</td>
+                        <td>{{ row.apollo_slots_needed }}</td>
+                        <td>Legacy {{ row.legacy_count }}, Apollo {{ row.apollo_email_count }}</td>
+                        <td>
+                            {% if row.sample_job_url %}
+                                <a href="{{ row.sample_job_url }}" target="_blank" rel="noopener noreferrer">Job {{ row.sample_job_id }} - {{ row.sample_job_title }}</a>
+                            {% else %}
+                                Job {{ row.sample_job_id }} - {{ row.sample_job_title }}
+                            {% endif %}
+                            <br><span class="subtle">{{ row.sample_location|default:"-" }}</span>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5"><span class="ok">No companies need Apollo contact top-up right now.</span></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </details>
+
+        <details>
+            <summary>Companies with nobody selected yet</summary>
+            <form method="post" action="{% url 'pipeline_blacklist_zero_recipient_companies_view' %}" class="actions" style="margin-top:10px;"
+                  onsubmit="return confirm('Blacklist every selected-batch company currently showing 0 usable recipients? Future imports from these companies will be rejected.');">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <button type="submit" class="warn">Blacklist 0-recipient Companies</button>
+                <button type="button" class="secondary" data-copy-target="zero-recipient-names">Copy Names</button>
+                <span class="subtle">{{ zero_usable_recipient_rows|length }} companies currently show 0 usable recipients.</span>
+            </form>
+            <pre id="zero-recipient-names" class="hidden-copy">{% for row in zero_usable_recipient_rows %}{{ row.normalized_name }}
+{% endfor %}</pre>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Company</th>
+                        <th>Domain</th>
+                        <th>Plan</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in zero_usable_recipient_rows %}
+                    <tr>
+                        <td>{{ row.normalized_name }}</td>
+                        <td>{{ row.domain|default:"-" }}</td>
+                        <td>{% if row.source_plan == "Exact job poster" %}Named person lookup{% else %}{{ row.source_plan }}{% endif %}</td>
+                        <td>Legacy {{ row.legacy_count }}, Apollo emails {{ row.apollo_email_count }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4"><span class="ok">No selected-batch companies have 0 usable recipients.</span></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </details>
+
+        <details>
+            <summary>All companies in this batch</summary>
+            <form method="post" action="{% url 'pipeline_update_inline_domains_view' %}">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <div class="actions" style="margin-top:12px;">
+                    <button type="submit" class="safe">Save Edited Domains</button>
+                    <span class="subtle">Blank domain fields are skipped. Invalid domains are not saved.</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>Admin</th>
+                            <th>Domain</th>
+                            <th>Sample Job</th>
+                            <th>How we will find people</th>
+                            <th>Selected People</th>
+                            <th>Stored People</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in company_rows %}
+                        <tr>
+                            <td>
+                                {% if row.sample_company_url %}
+                                    <a href="{{ row.sample_company_url }}" target="_blank" rel="noopener noreferrer">{{ row.normalized_name }}</a>
+                                {% elif row.sample_job_url %}
+                                    <a href="{{ row.sample_job_url }}" target="_blank" rel="noopener noreferrer">{{ row.normalized_name }}</a>
+                                {% else %}
+                                    {{ row.normalized_name }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="/admin/core/company/{{ row.company.id }}/change/" target="_blank" rel="noopener noreferrer">Company</a>
+                                {% if row.is_blacklisted or row.is_blocked %}
+                                    <span style="display:inline-block; width:14px;"></span>
+                                    <button type="submit"
+                                            class="warn inline-action"
+                                            name="company_id"
+                                            value="{{ row.company.id }}"
+                                            formaction="{% url 'pipeline_unblacklist_company_view' %}"
+                                            formmethod="post"
+                                            onclick="return confirm('Remove this company from BlacklistedCompany and set is_blocked=False?');">
+                                        Unblacklist
+                                    </button>
+                                {% endif %}
+                                <span style="display:inline-block; width:14px;"></span>
+                                <a href="/admin/core/jobposting/{{ row.sample_job_id }}/change/" target="_blank" rel="noopener noreferrer">Edit Job</a>
+                            </td>
+                            <td><input class="domain-input" type="text" name="domain_{{ row.company.id }}" value="{{ row.domain }}" placeholder="missing"></td>
+                            <td>
+                                {% if row.sample_job_url %}
+                                    <a href="{{ row.sample_job_url }}" target="_blank" rel="noopener noreferrer">Job {{ row.sample_job_id }} - {{ row.sample_job_title }}</a>
+                                {% else %}
+                                    Job {{ row.sample_job_id }} - {{ row.sample_job_title }}
+                                {% endif %}
+                                <br><span class="subtle">{{ row.sample_location|default:"-" }}</span>
+                            </td>
+                            <td>{% if row.source_plan == "Exact job poster" %}Named person lookup{% else %}{{ row.source_plan }}{% endif %}</td>
+                            <td><strong>{{ row.usable_recipient_count }}</strong></td>
+                            <td>
+                                Legacy {{ row.legacy_count }}, Apollo verified {{ row.apollo_email_count }}
+                                {% if row.last_apollo_run_at %}
+                                    <br><span class="subtle">Last run: {{ row.last_apollo_verified_emails_found }} verified / {{ row.last_apollo_unverified_emails_found }} rejected / {{ row.last_apollo_credits_consumed }}cr</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7">No companies in selected batch.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </form>
+        </details>
+
+        {% if pipeline_blacklist_result %}
+            <details open><summary>Blacklist result</summary><pre>{{ pipeline_blacklist_result }}</pre></details>
+        {% endif %}
+        {% if pipeline_inline_domain_result %}
+            <details open><summary>Inline domain edit result</summary><pre>{{ pipeline_inline_domain_result }}</pre></details>
+        {% endif %}
+    </div>
+
+    <div class="panel wide" id="apollo-auto-lookup">
+        <h2>Automatic Apollo People Lookup</h2>
+        <p class="subtle">
+            Use this when you want Apollo to automatically find data/ML/director contacts for companies that still need people.
+            It runs before Step 3 because email drafts are only useful after each job has someone to email.
+        </p>
+        <form method="post" action="{% url 'pipeline_run_recruiter_topup_view' %}" class="actions" style="margin-top:12px;">
+            {% csrf_token %}
+            <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+            <button type="submit" name="limit" value="test1">Test Next 1</button>
+            <button type="submit" name="limit" value="5">Run Next 5</button>
+            <button type="submit" name="limit" value="all" class="warn">Run All - Stop On Waste</button>
+            <button type="submit" name="limit" value="all_continue" class="warn"
+                    onclick="return confirm('Continue through all eligible companies even if some companies waste a credit? Each company still stops immediately when its own Apollo credits stop converting.');">
+                Run All - Continue
+            </button>
+            <button type="button" class="secondary" data-copy-target="recruiter-plan">Copy Recruiter Plan</button>
+        </form>
+        <form method="post" action="{% url 'send_control_batch_apollo_topup_view' %}" class="actions" style="margin-top:12px;">
+            {% csrf_token %}
+            <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+            <input type="hidden" name="next" value="/pipeline-dashboard/?batch_date={{ selected_batch_date }}">
+            <button type="submit" name="scope" value="approved_needs_apollo" class="secondary"
+                    {% if batch_topup_approved_needs_apollo_company_count == 0 %}disabled{% endif %}
+                    onclick="return confirm('Top up only approved/generated companies that are still below the max people setting? This fetches/syncs Apollo recipients only, uses strict title/domain checks for new Apollo contacts, and will not send emails.');">
+                Top Up Approved Needing Apollo To {{ max_people_per_company }} ({{ batch_topup_approved_needs_apollo_company_count }} of {{ batch_topup_approved_company_count }} companies)
+            </button>
+            <button type="submit" name="scope" value="all_batch_needs_apollo" class="secondary"
+                    {% if batch_topup_all_needs_apollo_company_count == 0 %}disabled{% endif %}
+                    onclick="return confirm('Top up only batch companies that are still below the max people setting? This may spend Apollo credits. It fetches/syncs recipients only, uses strict title/domain checks for new Apollo contacts, and will not send emails.');">
+                Top Up All Needing Apollo To {{ max_people_per_company }} ({{ batch_topup_all_needs_apollo_company_count }} of {{ batch_topup_all_company_count }} companies)
+            </button>
+            <button type="submit" name="scope" value="approved" class="secondary"
+                    onclick="return confirm('Top up companies that already have approved/generated jobs to the max people setting? This fetches/syncs Apollo recipients only, uses strict title/domain checks for new Apollo contacts, and will not send emails.');">
+                Sync/Top Up Approved To {{ max_people_per_company }} ({{ batch_topup_approved_company_count }} companies; {{ batch_topup_approved_needs_apollo_company_count }} need Apollo)
+            </button>
+            <button type="submit" name="scope" value="all_batch" class="secondary"
+                    onclick="return confirm('Top up ALL companies in this batch to the max people setting? This may spend Apollo credits. It fetches/syncs recipients only, uses strict title/domain checks for new Apollo contacts, and will not send emails.');">
+                Sync/Top Up All Batch To {{ max_people_per_company }} ({{ batch_topup_all_company_count }} companies; {{ batch_topup_all_needs_apollo_company_count }} need Apollo)
+            </button>
+        </form>
+        {% if pipeline_batch_topup_result %}
+            <div class="plain-status" style="margin-top:12px;">
+                <strong>Batch top-up result:</strong>
+                scope={{ pipeline_batch_topup_result.scope }},
+                companies={{ pipeline_batch_topup_result.companies_seen }},
+                verified_emails={{ pipeline_batch_topup_result.emails_found }},
+                unverified_rejected={{ pipeline_batch_topup_result.unverified_emails|default:0 }},
+                credits={{ pipeline_batch_topup_result.credits_consumed }},
+                jobs_synced={{ pipeline_batch_topup_result.jobs_synced }},
+                missing_domain={{ pipeline_batch_topup_result.companies_skipped_missing_domain }},
+                errors={{ pipeline_batch_topup_result.companies_errors }}.
+            </div>
+        {% endif %}
+        <pre id="recruiter-plan" class="hidden-copy">{% for row in recruiter_ready_rows %}{{ row.normalized_name }} | legacy={{ row.legacy_count }} | verified_apollo_emails={{ row.apollo_email_count }} | apollo_slots={{ row.apollo_slots_needed }} | domain={{ row.domain }}
+{% endfor %}</pre>
+
+        {% if pipeline_recruiter_result %}
+            <details open>
+                <summary>Latest automatic people lookup result, in plain words</summary>
+
+                <div class="plain-status">
+                    <strong>What happened:</strong>
+                    {{ pipeline_recruiter_result.display.summary_sentence }}
+                    <ul class="plain-list">
+                        <li><strong>People fetched:</strong> {{ pipeline_recruiter_result.totals.apollo_emails|default:0 }} verified email address{{ pipeline_recruiter_result.totals.apollo_emails|default:0|pluralize:"es" }} accepted from Apollo.</li>
+                        <li><strong>People rejected:</strong> {{ pipeline_recruiter_result.totals.unverified_emails|default:0 }} Apollo email{{ pipeline_recruiter_result.totals.unverified_emails|default:0|pluralize }} rejected because Apollo did not mark it verified.</li>
+                        <li><strong>People still missing:</strong> {{ pipeline_recruiter_result.display.people_still_needed_after_run|default:0 }} open person slot{{ pipeline_recruiter_result.display.people_still_needed_after_run|default:0|pluralize }} still did not get an email.</li>
+                        <li><strong>Money check:</strong> {{ pipeline_recruiter_result.totals.credits_consumed|default:0 }} Apollo credit{{ pipeline_recruiter_result.totals.credits_consumed|default:0|pluralize }} used, {{ pipeline_recruiter_result.totals.credits_not_converted_to_email|default:0 }} did not turn into an email.</li>
+                        <li><strong>Run status:</strong> {{ pipeline_recruiter_result.display.plain_stop_reason }}</li>
+                    </ul>
+                </div>
+
+                <div class="apollo-result-grid">
+                    <div class="metric"><span class="value">{{ pipeline_recruiter_result.totals.eligible_company_count_at_start|default:0 }}</span><span class="label">Companies That Needed People</span></div>
+                    <div class="metric"><span class="value">{{ pipeline_recruiter_result.totals.selected_company_count|default:0 }}</span><span class="label">Companies You Selected</span></div>
+                    <div class="metric"><span class="value">{{ pipeline_recruiter_result.totals.companies_seen|default:0 }}</span><span class="label">Companies Apollo Ran</span></div>
+                    <div class="metric"><span class="value">{{ pipeline_recruiter_result.totals.apollo_slots_requested|default:0 }}</span><span class="label">People Needed Before Run</span></div>
+                    <div class="metric"><span class="value">{{ pipeline_recruiter_result.totals.apollo_emails|default:0 }}</span><span class="label">Verified Emails Fetched</span></div>
+                    <div class="metric"><span class="value">{{ pipeline_recruiter_result.totals.unverified_emails|default:0 }}</span><span class="label">Non-Verified Emails Rejected</span></div>
+                    <div class="metric"><span class="value">{{ pipeline_recruiter_result.display.people_still_needed_after_run|default:0 }}</span><span class="label">People Still Missing</span></div>
+                </div>
+
+                {% if pipeline_recruiter_result.display.eligible_not_selected or pipeline_recruiter_result.display.selected_not_run or pipeline_recruiter_result.display.companies_skipped_after_exact_person_success %}
+                    <table>
+                        <tr><th>Question</th><th>Answer</th></tr>
+                        {% if pipeline_recruiter_result.display.eligible_not_selected %}
+                            <tr>
+                                <td>Why were some eligible companies not run?</td>
+                                <td>{{ pipeline_recruiter_result.display.eligible_not_selected }} eligible compan{{ pipeline_recruiter_result.display.eligible_not_selected|pluralize:"y,ies" }} were not selected by the button you clicked. Use Run All to include them.</td>
+                            </tr>
+                        {% endif %}
+                        {% if pipeline_recruiter_result.display.companies_skipped_after_exact_person_success %}
+                            <tr>
+                                <td>Why did selected companies not run broad Apollo lookup?</td>
+                                <td>{{ pipeline_recruiter_result.display.companies_skipped_after_exact_person_success }} compan{{ pipeline_recruiter_result.display.companies_skipped_after_exact_person_success|pluralize:"y,ies" }} already got the named job-poster email, so broad company lookup was skipped for them.</td>
+                            </tr>
+                        {% endif %}
+                        {% if pipeline_recruiter_result.display.selected_not_run %}
+                            <tr>
+                                <td>Why were selected companies not attempted?</td>
+                                <td>{{ pipeline_recruiter_result.display.selected_not_run }} selected compan{{ pipeline_recruiter_result.display.selected_not_run|pluralize:"y,ies" }} did not run because the lookup stopped early. Status: {{ pipeline_recruiter_result.display.plain_stop_reason }}</td>
+                            </tr>
+                        {% endif %}
+                    </table>
+                {% endif %}
+
+                {% if pipeline_recruiter_result.display.skip_reason_rows %}
+                    <h3>Why Apollo Could Not Fill Every Slot</h3>
+                    <table>
+                        <thead><tr><th>Reason</th><th>How many profiles</th><th>Meaning</th></tr></thead>
+                        <tbody>
+                        {% for reason in pipeline_recruiter_result.display.skip_reason_rows %}
+                            <tr>
+                                <td>{{ reason.label }}</td>
+                                <td>{{ reason.count }}</td>
+                                <td>These profiles were seen during search, but the app did not spend a credit on them unless Apollo had already revealed an email.</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
+
+                {% if pipeline_recruiter_result.display.company_rows %}
+                    <h3>Company By Company</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Company</th>
+                                <th>People Needed</th>
+                                <th>Verified Emails</th>
+                                <th>Rejected</th>
+                                <th>Still Missing</th>
+                                <th>Credits</th>
+                                <th>Titles Apollo Saw</th>
+                                <th>What Happened</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for row in pipeline_recruiter_result.display.company_rows %}
+                            <tr>
+                                <td>{{ row.company }}</td>
+                                <td>{{ row.needed }}</td>
+                                <td><strong>{{ row.found }}</strong></td>
+                                <td>{{ row.unverified }}</td>
+                                <td>{{ row.missing }}</td>
+                                <td>{{ row.credits }}</td>
+                                <td>
+                                    {% if row.title_samples %}
+                                        <ul class="title-samples">
+                                            {% for sample in row.title_samples %}
+                                                <li>{{ sample.title }}{% if sample.count > 1 %} <span class="title-count">x{{ sample.count }}</span>{% endif %}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <span class="subtle">No skipped title examples saved.</span>
+                                    {% endif %}
+                                </td>
+                                <td class="reason-cell">
+                                    {{ row.reason }}
+                                    {% if row.searched_profiles %}
+                                        <br><span class="subtle">Apollo search returned {{ row.searched_profiles }} profile{{ row.searched_profiles|pluralize }} before filtering.</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
+            </details>
+        {% endif %}
+    </div>
+
+    <div class="panel wide" id="emails">
+        <h2>Step 3: Write And Review Emails</h2>
+        <p>
+            <span class="pill amber">{{ metrics.ready_to_generate }} ready to generate</span>
+            <span class="subtle">
+                {{ blockers.jobs_missing_generated_email }} jobs still do not have a cold email draft. Some may still be waiting for people first.
+            </span>
+        </p>
+        <form method="post" action="{% url 'pipeline_generate_emails_view' %}" class="actions">
+            {% csrf_token %}
+            <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+            <label class="subtle" for="max_jobs">Max jobs</label>
+            <input id="max_jobs" name="max_jobs" type="number" min="1" placeholder="All" style="max-width:120px;">
+            <button type="submit" name="generation_scope" value="missing"
+                    onclick="return confirm('Generate email drafts only for selected-date jobs missing generated subject/body? This uses the selected email AI model and does not send emails.');">
+                Write Missing Email Drafts
+            </button>
+            <button type="submit" class="secondary" name="generation_scope" value="all"
+                    onclick="return confirm('Regenerate and replace email drafts for every eligible selected-date job? This uses the selected email AI model and does not send emails.');">
+                Rewrite All Email Drafts
+            </button>
+            <a class="button-link" href="{% url 'read_only_review_dashboard' %}?batch_date={{ batch.batch_date|date:'Y-m-d' }}">Review Drafts</a>
+            <a class="button-link" href="{% url 'send_control_dashboard' %}?batch_date={{ batch.batch_date|date:'Y-m-d' }}">Open Send Control</a>
+        </form>
+        {% if pipeline_generate_result %}
+            <details open>
+                <summary>Latest email writing result</summary>
+                <table>
+                    <tr><th>Provider</th><td>{{ pipeline_generate_result.totals.provider|default:"-" }}</td></tr>
+                    <tr><th>Model</th><td>{{ pipeline_generate_result.totals.model|default:"-" }}</td></tr>
+                    <tr><th>What was requested</th><td>{% if pipeline_generate_result.totals.skip_existing %}Only jobs missing drafts{% else %}All eligible jobs{% endif %}</td></tr>
+                    <tr><th>Jobs eligible</th><td>{{ pipeline_generate_result.totals.candidate_jobs|default:"-" }}</td></tr>
+                    <tr><th>Jobs selected for writing</th><td>{{ pipeline_generate_result.totals.selected_jobs|default:"-" }}</td></tr>
+                    <tr><th>Jobs processed</th><td>{{ pipeline_generate_result.totals.jobs_seen }}</td></tr>
+                    <tr><th>Drafts written</th><td>{{ pipeline_generate_result.totals.generated }}</td></tr>
+                    <tr><th>Errors</th><td>{{ pipeline_generate_result.totals.job_errors }}</td></tr>
+                    <tr><th>Master log</th><td>{{ pipeline_generate_result.totals.master_log_path }}</td></tr>
+                </table>
+            </details>
+        {% endif %}
+    </div>
+
+    <div class="panel wide">
+        <details>
+            <summary>Advanced Apollo audit and logs</summary>
+            <div class="metric-grid" style="margin-top:12px;">
+                <div class="metric"><span class="value">{{ apollo_credit_audit.dashboard_credits_used }}</span><span class="label">Apollo Dashboard Used</span></div>
+                <div class="metric"><span class="value">{{ apollo_credit_audit.local_unique_apollo_emails }}</span><span class="label">Local Verified Apollo Emails</span></div>
+                <div class="metric"><span class="value">{{ apollo_credit_audit.dashboard_minus_local_apollo_emails }}</span><span class="label">Dashboard Minus Local</span></div>
+                <div class="metric"><span class="value">{{ today_apollo_log_report.totals.credits }}</span><span class="label">Credits Logged Today</span></div>
+                <div class="metric"><span class="value">{{ today_apollo_log_report.totals.emails }}</span><span class="label">Emails Accepted Today</span></div>
+                <div class="metric"><span class="value">{{ today_apollo_log_report.totals.unverified|default:0 }}</span><span class="label">Non-Verified Rejected Today</span></div>
+                <div class="metric"><span class="value">{{ today_apollo_log_report.totals.not_converted }}</span><span class="label">Not Converted Today</span></div>
+            </div>
+            <form method="post" action="{% url 'pipeline_set_apollo_dashboard_credits_view' %}" class="actions" style="margin-top:12px;">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <label>
+                    Before run: Apollo dashboard used
+                    <input type="number" name="apollo_dashboard_credits_used" value="{{ apollo_credit_audit.dashboard_credits_used }}" min="0" style="width:110px;">
+                </label>
+                <button type="submit" class="secondary">Save Checkpoint</button>
+            </form>
+            <form method="post" action="{% url 'pipeline_compare_apollo_dashboard_view' %}" class="actions" style="margin-top:8px;">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <label>
+                    Apollo dashboard used now
+                    <input type="number" name="apollo_dashboard_current" min="0" placeholder="paste latest" style="width:120px;">
+                </label>
+                <button type="submit" class="secondary">Compare Apollo Actual</button>
+            </form>
+            <form method="post" action="{% url 'pipeline_check_apollo_credits_view' %}" class="actions" style="margin-top:8px;">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <button type="submit" class="secondary">Check Apollo API Balance</button>
+                {% if apollo_credits_info %}
+                    <span class="subtle">{% for k, v in apollo_credits_info.items %}{{ k }}: <strong>{{ v }}</strong>{% if not forloop.last %} &nbsp;|&nbsp; {% endif %}{% endfor %}</span>
+                {% endif %}
+            </form>
+            <h3>Checkpoint Comparison</h3>
+            <table>
+                <tr><th>Before-run checkpoint</th><td>{{ apollo_compare_result.checkpoint_dashboard }}</td></tr>
+                <tr><th>{% if apollo_compare_result.auto_expected %}Expected Apollo now{% else %}Apollo actual entered{% endif %}</th><td>{{ apollo_compare_result.current_dashboard|default:"-" }}</td></tr>
+                <tr><th>Our app logged credits</th><td>{{ apollo_compare_result.logged_credit_delta }}</td></tr>
+                <tr><th>Our app got emails</th><td>{{ apollo_compare_result.logged_email_delta }}</td></tr>
+                <tr><th>Unexplained Apollo gap</th><td>{{ apollo_compare_result.unexplained_delta }}</td></tr>
+            </table>
+        </details>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    (function () {
+        function copyText(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            }
+            return new Promise(function (resolve, reject) {
+                try {
+                    var textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    textarea.style.position = 'fixed';
+                    textarea.style.left = '-1000px';
+                    textarea.style.top = '-1000px';
+                    document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+                    var ok = document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    ok ? resolve() : reject(new Error('copy failed'));
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
+
+        document.addEventListener('click', function (event) {
+            var peopleBtn = event.target.closest('[data-open-people-links]');
+            if (peopleBtn) {
+                var container = peopleBtn.closest('td');
+                if (!container) return;
+                var urls = [];
+                var jobUrl = peopleBtn.getAttribute('data-job-url');
+                if (jobUrl) urls.push(jobUrl);
+
+                var linksByLabel = {};
+                container.querySelectorAll('a[data-people-label]').forEach(function (link) {
+                    var label = (link.getAttribute('data-people-label') || '').trim().toLowerCase();
+                    if (label && link.href) {
+                        linksByLabel[label] = link.href;
+                    }
+                });
+                ['data science director', 'data science manager', 'ml manager', 'analytics director'].forEach(function (label) {
+                    if (linksByLabel[label] && urls.indexOf(linksByLabel[label]) === -1) {
+                        urls.push(linksByLabel[label]);
+                    }
+                });
+
+                if (urls.length < 4) {
+                    container.querySelectorAll('a.people-search-link').forEach(function (link) {
+                        if (link.href && urls.indexOf(link.href) === -1) {
+                            urls.push(link.href);
+                        }
+                    });
+                }
+
+                urls.slice(0, 4).forEach(function (url) {
+                    var opened = window.open(url, '_blank');
+                    if (opened) {
+                        opened.opener = null;
+                    }
+                });
+                return;
+            }
+
+            var btn = event.target.closest('[data-copy-target]');
+            if (!btn) return;
+            var id = btn.getAttribute('data-copy-target');
+            var el = document.getElementById(id);
+            var status = document.getElementById('copy-status');
+            if (!el) return;
+            if (status) status.textContent = '';
+            copyText(el.textContent || '').then(function () {
+                if (status) status.textContent = 'Copied.';
+            }).catch(function () {
+                if (status) status.textContent = 'Could not copy.';
+            });
+        });
+
+        function setupManualJobIdWorkflow() {
+            var workbar = document.querySelector('[data-job-id-workbar]');
+            if (!workbar) return;
+
+            var batchDate = workbar.getAttribute('data-batch-date') || 'latest';
+            var storageKey = 'pipelineManualJobIds:' + batchDate;
+            var completedEl = document.querySelector('[data-job-id-completed]');
+            var currentLabel = document.querySelector('[data-current-job-label]');
+            var rows = Array.prototype.slice.call(document.querySelectorAll('[data-job-id-row]'));
+
+            function loadState() {
+                try {
+                    return JSON.parse(localStorage.getItem(storageKey) || '{}') || {};
+                } catch (e) {
+                    return {};
+                }
+            }
+
+            function saveState(state) {
+                try {
+                    localStorage.setItem(storageKey, JSON.stringify(state || {}));
+                } catch (e) {}
+            }
+
+            function rowDone(row) {
+                var checkbox = row.querySelector('[data-job-done-checkbox]');
+                var input = row.querySelector('[data-job-id-input]');
+                return Boolean((checkbox && checkbox.checked) || (input && input.value.trim()));
+            }
+
+            function render() {
+                var state = loadState();
+                state.opened = state.opened || {};
+                var completed = 0;
+                var currentText = '';
+                rows.forEach(function (row) {
+                    var jobPk = row.getAttribute('data-job-pk');
+                    var radio = row.querySelector('[data-current-job-radio]');
+                    var checkbox = row.querySelector('[data-job-done-checkbox]');
+                    var input = row.querySelector('[data-job-id-input]');
+                    var isCurrent = state.currentJobPk === jobPk;
+                    if (radio) radio.checked = isCurrent;
+                    if (checkbox && state.done && Object.prototype.hasOwnProperty.call(state.done, jobPk)) {
+                        checkbox.checked = Boolean(state.done[jobPk]);
+                    }
+                    var isDone = rowDone(row);
+                    var isOpened = Boolean(state.opened[jobPk]);
+                    row.classList.toggle('current-job-row', isCurrent);
+                    row.classList.toggle('done-job-row', isDone && !isCurrent);
+                    row.classList.toggle('opened-job-row', isOpened);
+                    row.querySelectorAll('[data-job-open-link]').forEach(function (link) {
+                        var linkKey = link.getAttribute('data-job-open-link') || 'job';
+                        var openedLinks = state.openedLinks || {};
+                        link.classList.toggle('opened-job-link', Boolean(openedLinks[jobPk + ':' + linkKey] || isOpened));
+                    });
+                    if (isDone) completed += 1;
+                    if (isCurrent) {
+                        var number = row.getAttribute('data-job-number') || '';
+                        var company = row.querySelector('.job-id-company');
+                        currentText = 'Current: #' + number + (company ? ' - ' + company.textContent.trim() : '');
+                    }
+                    if (input) {
+                        input.setAttribute('aria-label', 'Website job ID for row ' + (row.getAttribute('data-job-number') || jobPk));
+                    }
+                });
+                if (completedEl) completedEl.textContent = String(completed);
+                if (currentLabel) currentLabel.textContent = currentText || 'No current job selected';
+            }
+
+            rows.forEach(function (row) {
+                var jobPk = row.getAttribute('data-job-pk');
+                var radio = row.querySelector('[data-current-job-radio]');
+                var checkbox = row.querySelector('[data-job-done-checkbox]');
+                var input = row.querySelector('[data-job-id-input]');
+
+                if (radio) {
+                    radio.addEventListener('change', function () {
+                        var state = loadState();
+                        state.currentJobPk = jobPk;
+                        saveState(state);
+                        render();
+                    });
+                }
+                if (checkbox) {
+                    checkbox.addEventListener('change', function () {
+                        var state = loadState();
+                        state.done = state.done || {};
+                        state.done[jobPk] = checkbox.checked;
+                        saveState(state);
+                        render();
+                    });
+                }
+                if (input) {
+                    input.addEventListener('input', function () {
+                        if (input.value.trim() && checkbox) {
+                            checkbox.checked = true;
+                            var state = loadState();
+                            state.done = state.done || {};
+                            state.done[jobPk] = true;
+                            saveState(state);
+                        }
+                        render();
+                    });
+                }
+                row.querySelectorAll('[data-job-open-link]').forEach(function (link) {
+                    link.addEventListener('click', function () {
+                        var state = loadState();
+                        var linkKey = link.getAttribute('data-job-open-link') || 'job';
+                        state.opened = state.opened || {};
+                        state.openedLinks = state.openedLinks || {};
+                        state.currentJobPk = jobPk;
+                        state.opened[jobPk] = true;
+                        state.openedLinks[jobPk + ':' + linkKey] = true;
+                        saveState(state);
+                        render();
+                    });
+                });
+            });
+
+            var clearButton = document.querySelector('[data-clear-job-id-progress]');
+            if (clearButton) {
+                clearButton.addEventListener('click', function () {
+                    localStorage.removeItem(storageKey);
+                    rows.forEach(function (row) {
+                        var radio = row.querySelector('[data-current-job-radio]');
+                        var checkbox = row.querySelector('[data-job-done-checkbox]');
+                        if (radio) radio.checked = false;
+                        if (checkbox) checkbox.checked = false;
+                    });
+                    render();
+                });
+            }
+
+            render();
+        }
+
+        setupManualJobIdWorkflow();
+    })();
+</script>
+</body>
+</html>

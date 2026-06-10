@@ -1,0 +1,75 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+  <h1>Job postings by date</h1>
+
+  <div style="margin: 10px 0 16px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <label for="id_d" style="font-weight:600;">Batch date</label>
+      <input id="id_d" type="date" name="d" value="{{ selected_date }}">
+      <input type="submit" value="Go" class="button">
+    </form>
+
+    <a class="button" href="?d={{ prev_date }}">Prev</a>
+    <a class="button" href="?d={{ next_date }}">Next</a>
+    <a class="button" href="/admin/core/jobposting/">Back to list</a>
+  </div>
+
+  <p style="margin:0 0 10px 0;">
+    Showing {{ page_obj.paginator.count }} job(s) for {{ selected_date }}.
+  </p>
+
+  <table id="result_list">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Company</th>
+        <th>Title</th>
+        <th>Location</th>
+        <th>Status</th>
+        <th>Job</th>
+        <th>People</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+        <tr>
+          <td><a href="/admin/core/jobposting/{{ job.id }}/change/">{{ job.id }}</a></td>
+          <td>{{ job.company }}</td>
+          <td>{{ job.title }}</td>
+          <td>{{ job.location }}</td>
+          <td>{{ job.status }}</td>
+          <td>{% if job.linkedin_url %}<a class="ce-admin-btn ce-admin-btn-job" href="{{ job.linkedin_url }}" target="_blank" rel="noopener noreferrer">Open job</a>{% else %}-{% endif %}</td>
+          <td>
+            {# Use stored data/ML manager URLs if present. #}
+            {% if job.linkedin_people_search_urls.data_science_director %}
+              <a class="ce-admin-btn ce-admin-btn-people" href="{{ job.linkedin_people_search_urls.data_science_director }}" target="_blank" rel="noopener noreferrer">Data Science Director</a><br>
+            {% endif %}
+            {% if job.linkedin_people_search_urls.data_science_manager %}
+              <a class="ce-admin-btn ce-admin-btn-people" href="{{ job.linkedin_people_search_urls.data_science_manager }}" target="_blank" rel="noopener noreferrer">Data Science Manager</a><br>
+            {% endif %}
+            {% if job.linkedin_people_search_urls.machine_learning_manager %}
+              <a class="ce-admin-btn ce-admin-btn-people" href="{{ job.linkedin_people_search_urls.machine_learning_manager }}" target="_blank" rel="noopener noreferrer">ML Manager</a>
+            {% endif %}
+            {% if not job.linkedin_people_search_urls.data_science_director and not job.linkedin_people_search_urls.data_science_manager and not job.linkedin_people_search_urls.machine_learning_manager %}
+              -
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+    <div class="paginator" style="margin-top:12px;">
+      {% if page_obj.has_previous %}
+        <a href="?d={{ selected_date }}&p={{ page_obj.previous_page_number }}">{% trans "Previous" %}</a>
+      {% endif %}
+      <span style="margin: 0 8px;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?d={{ selected_date }}&p={{ page_obj.next_page_number }}">{% trans "Next" %}</a>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

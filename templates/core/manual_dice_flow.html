@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manual Dice Flow</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --panel: #ffffff;
+            --line: #d9e0ea;
+            --text: #1f2937;
+            --muted: #667085;
+            --blue: #1f6feb;
+            --blue-dark: #1757b8;
+            --green: #157347;
+            --red: #b42318;
+            --amber: #9a6700;
+            --ink: #101828;
+            --soft-green: #ecfdf3;
+            --soft-red: #fff1f0;
+            --soft-amber: #fffaeb;
+            --soft-blue: #eff6ff;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 22px; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+        h1 { margin: 0 0 6px 0; font-size: 26px; }
+        h2 { margin: 0 0 12px 0; font-size: 18px; }
+        h3 { margin: 18px 0 8px; font-size: 15px; }
+        a { color: var(--blue); }
+        .topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+        .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .subtle { color: var(--muted); font-size: 13px; }
+        .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        button, .button-link {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-height: 38px; padding: 8px 12px; border-radius: 6px; border: 0;
+            background: var(--blue); color: white; text-decoration: none; cursor: pointer; font-size: 14px;
+        }
+        button:hover, .button-link:hover { background: var(--blue-dark); }
+        textarea, input[type="number"] { width: 100%; border: 1px solid #b8c2d1; border-radius: 6px; padding: 9px; font-size: 14px; }
+        textarea { min-height: 210px; resize: vertical; font-family: Consolas, monospace; }
+        label { display:block; margin: 10px 0 4px; font-weight: 700; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid var(--line); padding: 8px; font-size: 13px; line-height: 1.35; vertical-align: top; }
+        th { background: #eef2f7; text-align: left; color: #344054; }
+        .messages { margin: 0 0 16px 0; }
+        .message { padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; background: #e7f6ee; border: 1px solid #a7d7bd; }
+        .message.error { background: #fee4e2; border-color: #f5a7a0; }
+        .ok { color: var(--green); font-weight: 700; }
+        .bad { color: var(--red); font-weight: 700; }
+        .warn { color: var(--amber); font-weight: 700; }
+        .pill { display: inline-block; padding: 3px 7px; border-radius: 999px; background: #eef2ff; color: #3441a3; font-size: 12px; font-weight: 700; }
+        .pill.ok { background: #d1fadf; color: #067647; }
+        .pill.warn { background: #fef0c7; color: #93370d; }
+        .form-grid { display: grid; grid-template-columns: minmax(180px, 240px) repeat(4, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+        .summary-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 16px; align-items: stretch; }
+        .result-title { font-size: 22px; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
+        .result-sentence { font-size: 15px; line-height: 1.5; color: #344054; }
+        .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+        .metric { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fbfcff; min-height: 88px; }
+        .metric.good { background: var(--soft-green); border-color: #abefc6; }
+        .metric.badish { background: var(--soft-red); border-color: #fecdca; }
+        .metric.info { background: var(--soft-blue); border-color: #bfdbfe; }
+        .metric.warnish { background: var(--soft-amber); border-color: #fedf89; }
+        .metric .value { display: block; color: var(--ink); font-size: 26px; font-weight: 800; line-height: 1; }
+        .metric .label { display: block; margin-top: 7px; color: var(--muted); font-size: 12px; line-height: 1.3; }
+        .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+        .table-wrap { overflow-x: auto; }
+        .compact-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
+        @media (max-width: 1100px) {
+            .topline { align-items: flex-start; flex-direction: column; }
+            .summary-hero, .section-grid, .metric-grid, .form-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topline">
+        <div>
+            <h1>Manual Dice Flow</h1>
+            <div class="subtle">Paste Dice job URLs, preview or store them, and keep Dice stats separate from LinkedIn.</div>
+        </div>
+        <div class="actions">
+            <a class="button-link" href="{% url 'manual_linkedin_flow' %}">LinkedIn Flow</a>
+            <a class="button-link" href="{% url 'pipeline_dashboard' %}">Pipeline</a>
+            <a class="button-link" href="{% url 'send_control_dashboard' %}">Send Control</a>
+            <a class="button-link" href="{% url 'operations_dashboard' %}">Operations</a>
+            <a class="button-link" href="/admin/core/jobposting/?source_platform__exact=dice">Dice Jobs Admin</a>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+            <div class="message {% if message.tags == 'error' %}error{% endif %}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="panel">
+        <h2>Dice Job Statistics</h2>
+        <div class="metric-grid">
+            <div class="metric info">
+                <span class="value">{{ dice_total_jobs }}</span>
+                <span class="label">Total Dice jobs in database</span>
+            </div>
+            <div class="metric good">
+                <span class="value">{{ dice_today_jobs }}</span>
+                <span class="label">Dice jobs stored today</span>
+            </div>
+            <div class="metric info">
+                <span class="value">{{ max_people_per_company }}</span>
+                <span class="label">Max people per company after import</span>
+            </div>
+            <div class="metric warnish">
+                <span class="value">{{ company_cooldown_days }}</span>
+                <span class="label">Default company cooldown days</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Import Dice Job URLs</h2>
+        <form method="post" action="{% url 'manual_dice_flow' %}">
+            {% csrf_token %}
+            {{ form.dice_job_urls.label_tag }}
+            {{ form.dice_job_urls }}
+            <div class="compact-note">
+                Dice URLs must be on dice.com/job-detail. Turn on dry run first if you want a preview before writing to the database.
+            </div>
+            <div class="form-grid">
+                <div>
+                    {{ form.cooldown_days.label_tag }}
+                    {{ form.cooldown_days }}
+                    <div class="subtle">{{ form.cooldown_days.help_text }}</div>
+                </div>
+                <label>{{ form.skip_blocked_companies }} Skip blocked companies</label>
+                <label>{{ form.use_openai_filter }} OpenAI APPLY/REJECT filter</label>
+                <label>{{ form.dry_run }} Dry run</label>
+                <label>{{ form.force_refetch }} Force re-fetch</label>
+            </div>
+            <button type="submit">Normalize, Scrape, Store Dice Jobs</button>
+        </form>
+    </div>
+
+    {% if result %}
+    <div class="panel">
+        <div class="summary-hero">
+            <div>
+                <div class="result-title">Latest Dice Run Result</div>
+                {% if result.ok == False %}
+                    <p class="bad">{{ result.error }}</p>
+                {% else %}
+                    <div class="result-sentence">
+                        You gave <strong>{{ result.manual_summary.input_urls|default:0 }}</strong> Dice URL{{ result.manual_summary.input_urls|default:0|pluralize }}.
+                        <strong class="ok">{{ result.manual_summary.created_jobs|default:0 }}</strong> new job{{ result.manual_summary.created_jobs|default:0|pluralize }} were stored,
+                        <strong class="ok">{{ result.manual_summary.updated_jobs|default:0 }}</strong> updated,
+                        and <strong class="bad">{{ result.manual_summary.skipped_jobs|default:0 }}</strong> skipped or not imported.
+                    </div>
+                    <div class="compact-note">
+                        Batch {{ result.batch_date|default:"-" }}.
+                        {% if result.dry_run %}<span class="pill warn">Dry run</span>{% endif %}
+                        {% if result.run_log_path %}<span class="pill">Run log saved</span>{% endif %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="metric-grid">
+                <div class="metric info">
+                    <span class="value">{{ result.manual_summary.scraped_jobs|default:0 }}</span>
+                    <span class="label">Scraped</span>
+                </div>
+                <div class="metric good">
+                    <span class="value">{{ result.manual_summary.created_jobs|default:0 }}</span>
+                    <span class="label">Created</span>
+                </div>
+                <div class="metric warnish">
+                    <span class="value">{{ result.manual_summary.filtered_reject|default:0 }}</span>
+                    <span class="label">OpenAI rejected</span>
+                </div>
+                <div class="metric badish">
+                    <span class="value">{{ result.manual_summary.errors|default:0 }}</span>
+                    <span class="label">Errors</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-grid">
+            <div>
+                <h3>Stored or Previewed Jobs</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Job</th>
+                                <th>Company</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for row in result.stored_job_rows %}
+                            <tr>
+                                <td>
+                                    {% if row.job_url %}<a href="{{ row.job_url }}" target="_blank" rel="noopener noreferrer">{{ row.title|default:"-" }}</a>{% else %}{{ row.title|default:"-" }}{% endif %}
+                                    {% if row.job_id %}<div class="compact-note">Job ID {{ row.job_id }}</div>{% endif %}
+                                </td>
+                                <td>{{ row.company|default:"-" }}</td>
+                                <td>{{ row.location|default:"-" }}</td>
+                                <td><span class="pill ok">{{ row.status|default:"-" }}</span></td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="4" class="subtle">No stored or previewed jobs in the latest run.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div>
+                <h3>Not Imported</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>URL</th>
+                                <th>Company</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for row in result.not_imported_rows %}
+                            <tr>
+                                <td>{% if row.job_url %}<a href="{{ row.job_url }}" target="_blank" rel="noopener noreferrer">Open</a>{% else %}-{% endif %}</td>
+                                <td>{{ row.company|default:"-" }}</td>
+                                <td>{{ row.title|default:"-" }}</td>
+                                <td><span class="pill warn">{{ row.status|default:"-" }}</span></td>
+                                <td>{{ row.detail|default:"-" }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="5" class="subtle">Nothing was rejected or skipped in the latest run.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="panel">
+        <h2>Latest Dice Jobs</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Stored</th>
+                        <th>Company</th>
+                        <th>Title</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for job in latest_dice_jobs %}
+                    <tr>
+                        <td>{{ job.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ job.company }}</td>
+                        <td><a href="{{ job.linkedin_url }}" target="_blank" rel="noopener noreferrer">{{ job.title }}</a></td>
+                        <td>{{ job.location }}</td>
+                        <td>{{ job.status }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" class="subtle">No Dice jobs have been stored yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

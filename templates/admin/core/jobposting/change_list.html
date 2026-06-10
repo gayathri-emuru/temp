@@ -1,0 +1,30 @@
+{% extends "admin/change_list.html" %}
+
+{% block search %}
+  {{ block.super }}
+
+  <div class="ce-jobposting-datebar">
+    <form method="get" class="ce-jobposting-datebar-form">
+      {# Preserve existing filters/search, except our date and pagination #}
+      {% for key, value in request.GET.items %}
+        {% if key != "created_on" and key != "p" and key != "e" %}
+          <input type="hidden" name="{{ key }}" value="{{ value }}">
+        {% endif %}
+      {% endfor %}
+
+      <input
+        id="id_created_on"
+        class="ce-date-icon-only"
+        type="date"
+        name="created_on"
+        value="{{ created_on|default:'' }}"
+        title="Filter by batch date"
+        onchange="this.form.submit()"
+      >
+
+      {% if created_on %}
+        <a class="button" href="?{{ created_on_clear_qs }}">Clear</a>
+      {% endif %}
+    </form>
+  </div>
+{% endblock %}

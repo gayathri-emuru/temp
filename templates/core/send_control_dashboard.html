@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Email Send Control</title>
+    <meta http-equiv="refresh" content="1">
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --panel: #ffffff;
+            --line: #d9e0ea;
+            --text: #18202f;
+            --muted: #647084;
+            --blue: #1f6feb;
+            --blue-dark: #1757b8;
+            --green: #157347;
+            --red: #b42318;
+            --amber: #9a6700;
+            --ink: #0f172a;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 22px; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+        h1 { margin: 0 0 6px; font-size: 28px; }
+        h2 { margin: 0 0 12px; font-size: 19px; }
+        h3 { margin: 18px 0 8px; font-size: 15px; }
+        a { color: var(--blue); }
+        .topline { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+        .subtle { color: var(--muted); font-size: 13px; line-height: 1.45; }
+        .grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 16px; }
+        .wide { grid-column: 1 / -1; }
+        .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+        .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .button-link, button {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-height: 38px; padding: 8px 12px; border-radius: 6px; border: 0;
+            background: var(--blue); color: white; text-decoration: none; cursor: pointer; font-size: 14px;
+        }
+        .button-link:hover, button:hover { background: var(--blue-dark); }
+        button.safe { background: var(--green); }
+        button.stop { background: var(--red); }
+        button.secondary, .button-link.secondary { background: #334155; }
+        button:disabled { background: #98a2b3; cursor: not-allowed; }
+        input[type="date"], input[type="number"] { min-height: 38px; border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; font: inherit; color: var(--text); background: white; }
+        input[type="number"] { width: 96px; }
+        .compact-label { display: inline-grid; gap: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
+        .metric-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+        .metric { border: 1px solid var(--line); border-radius: 6px; padding: 10px; background: #fbfcff; min-height: 72px; }
+        .metric .value { display: block; font-size: 24px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+        .metric .label { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
+        .status-card { margin-top: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcff; padding: 12px; }
+        .status-card.safety { border-color: #f5a7a0; background: #fff7f6; }
+        .stop-alert {
+            margin-top: 14px; border: 2px solid var(--red); border-radius: 8px;
+            background: #fff1f0; color: #7a271a; padding: 16px;
+            box-shadow: 0 0 0 4px rgba(180, 35, 24, 0.08);
+        }
+        .stop-alert .alert-title { font-size: 22px; font-weight: 800; line-height: 1.2; color: var(--red); }
+        .stop-alert .alert-detail { margin-top: 8px; font-size: 14px; line-height: 1.45; word-break: break-word; }
+        .stop-alert.failed { border-color: #b42318; background: #fff1f0; }
+        .pause-alert {
+            margin-top: 14px; border: 3px solid var(--red); border-radius: 8px;
+            background: #fff1f0; color: #7a271a; padding: 18px;
+            box-shadow: 0 0 0 6px rgba(180, 35, 24, 0.12);
+        }
+        .pause-alert .alert-title { font-size: 24px; font-weight: 900; line-height: 1.2; color: var(--red); }
+        .pause-alert .alert-detail { margin-top: 8px; font-size: 15px; line-height: 1.45; word-break: break-word; }
+        .stalled-alert {
+            margin-top: 14px; border: 3px solid #d97706; border-radius: 8px;
+            background: #fff7ed; color: #7c2d12; padding: 18px;
+            box-shadow: 0 0 0 6px rgba(217, 119, 6, 0.14);
+        }
+        .stalled-alert .alert-title { font-size: 24px; font-weight: 900; line-height: 1.2; color: #c2410c; }
+        .stalled-alert .alert-detail { margin-top: 8px; font-size: 15px; line-height: 1.45; word-break: break-word; }
+        .live-alert {
+            margin-top: 14px; border: 2px solid var(--green); border-radius: 8px;
+            background: #ecfdf3; color: #064e3b; padding: 16px;
+            box-shadow: 0 0 0 4px rgba(21, 115, 71, 0.10);
+            animation: livePulse 1.4s ease-in-out infinite;
+        }
+        .live-alert .alert-title { font-size: 22px; font-weight: 800; line-height: 1.2; color: var(--green); }
+        .live-alert .alert-detail { margin-top: 8px; font-size: 14px; line-height: 1.45; word-break: break-word; }
+        @keyframes livePulse {
+            0%, 100% { box-shadow: 0 0 0 4px rgba(21, 115, 71, 0.10); }
+            50% { box-shadow: 0 0 0 8px rgba(21, 115, 71, 0.20); }
+        }
+        .live-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0 12px; }
+        .live-box { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 12px; min-height: 112px; }
+        .live-box.primary { border-color: #a7d7bd; background: #f7fffb; }
+        .live-box.waiting { border-color: #f3d58b; background: #fffaf0; }
+        .live-box .title { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 7px; }
+        .live-box .main { font-size: 15px; font-weight: 700; color: var(--ink); word-break: break-word; line-height: 1.35; }
+        .live-box .detail { color: var(--muted); font-size: 12px; margin-top: 6px; line-height: 1.4; word-break: break-word; }
+        .status-row { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 8px; padding: 5px 0; border-top: 1px solid #edf1f7; }
+        .status-row:first-child { border-top: 0; }
+        .status-label { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .status-value { font-size: 13px; line-height: 1.4; word-break: break-word; }
+        .status-note { white-space: pre-wrap; max-height: 280px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 10px; background: white; }
+        .run-log-tail {
+            margin-top: 12px; border: 1px solid #111827; border-radius: 8px;
+            background: #0b1020; color: #d1fae5; padding: 12px;
+            max-height: 320px; overflow: auto; font: 12px/1.45 Consolas, "Courier New", monospace;
+            white-space: pre-wrap; word-break: break-word;
+        }
+        .run-log-title { margin-top: 14px; color: var(--ink); font-size: 14px; font-weight: 800; }
+        .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; background: #eef2ff; color: #3441a3; font-size: 12px; font-weight: 700; }
+        .pill.green { background: #e7f6ee; color: #137447; }
+        .pill.red { background: #fee4e2; color: #b42318; }
+        .pill.amber { background: #fff4d6; color: #7a5200; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid var(--line); padding: 8px; font-size: 13px; vertical-align: top; text-align: left; }
+        th { background: #eef2f7; color: #344054; }
+        .messages { margin-bottom: 16px; }
+        .message { padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; background: #e7f6ee; border: 1px solid #a7d7bd; }
+        .message.error { background: #fee4e2; border-color: #f5a7a0; }
+        .email-preview { white-space: pre-wrap; word-break: break-word; line-height: 1.5; background: #fbfcff; border: 1px solid var(--line); border-radius: 6px; padding: 12px; max-height: 360px; overflow: auto; }
+        details { margin-top: 10px; }
+        summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+        .warn { color: var(--amber); font-weight: 700; }
+        .bad { color: var(--red); font-weight: 700; }
+        .ok { color: var(--green); font-weight: 700; }
+        @media (max-width: 1100px) {
+            .grid, .metric-grid { grid-template-columns: 1fr; }
+            .live-grid { grid-template-columns: 1fr; }
+            .topline { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<div class="topline">
+    <div>
+        <h1>Email Send Control</h1>
+        <div class="subtle">
+            Pick a populated batch date. Start sends real initial emails only to approved jobs with selected recipients.
+            Stop pauses before the next email; resume starts again and skips everyone already sent.
+        </div>
+    </div>
+    <div class="actions">
+        <a class="button-link secondary" href="{% url 'pipeline_dashboard' %}">Pipeline</a>
+        <a class="button-link secondary" href="{% url 'live_company_reply_dashboard' %}?batch_date={{ selected_batch_date }}">Live Reply Stops</a>
+        <a class="button-link secondary" href="{% url 'read_only_review_dashboard' %}">Read-only Review</a>
+        <a class="button-link secondary" href="{% url 'inbox_monitor_dashboard' %}">Inbox Monitor</a>
+        <a class="button-link secondary" href="{% url 'followup_dashboard' %}">Follow-Ups</a>
+        <form method="post" action="{% url 'inbox_monitor_scan_now' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="secondary" type="submit">Scan Inboxes</button>
+        </form>
+    </div>
+</div>
+
+{% if messages %}
+<div class="messages">
+    {% for message in messages %}
+        <div class="message {% if message.tags == 'error' %}error{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not batch %}
+    <div class="panel">
+        <h2>No Sendable Batch Found</h2>
+        <p class="subtle">No populated batch exists yet. Import jobs first.</p>
+    </div>
+{% else %}
+<div class="grid">
+    <div class="panel wide">
+        <h2>Before Sending</h2>
+        <form method="get" action="{% url 'send_control_dashboard' %}" class="actions" style="margin-bottom:12px;">
+            <label for="batch_date" class="subtle"><strong>Batch date</strong></label>
+            <input id="batch_date" type="date" name="batch_date" value="{{ selected_batch_date }}" list="available_batch_dates">
+            <datalist id="available_batch_dates">
+                {% for row in available_batches %}
+                    <option value="{{ row.batch.batch_date|date:'Y-m-d' }}">{{ row.batch.batch_date }} - {{ row.job_count }} jobs</option>
+                {% endfor %}
+            </datalist>
+            <button type="submit" class="secondary">View Date</button>
+            <a class="button-link secondary" href="{% url 'read_only_review_dashboard' %}?batch_date={{ selected_batch_date }}">Read-only For This Date</a>
+        </form>
+        <div class="subtle">
+            Available populated dates:
+            {% for row in available_batches %}
+                <a class="pill {% if row.batch.id == batch.id %}green{% endif %}" href="{% url 'send_control_dashboard' %}?batch_date={{ row.batch.batch_date|date:'Y-m-d' }}">
+                    {{ row.batch.batch_date }}: {{ row.job_count }} jobs
+                </a>
+            {% endfor %}
+        </div>
+        <p>
+            Sending date: <strong>{{ batch.batch_date }}</strong>
+            {% if active_run %}
+                <span class="pill amber">Running: SendRun #{{ active_run.id }}</span>
+            {% elif email_sending_state.paused %}
+                <span class="pill amber">Paused</span>
+            {% elif email_sending_state.effective_enabled %}
+                <span class="pill green">Ready Gate On</span>
+            {% else %}
+                <span class="pill red">Sending Blocked</span>
+            {% endif %}
+        </p>
+        <div class="metric-grid">
+            <div class="metric"><span class="value">{{ plan.totals.companies|default:0 }}</span><span class="label">Companies To Send</span></div>
+            <div class="metric"><span class="value">{{ plan.totals.ready_jobs|default:0 }}</span><span class="label">Ready Jobs</span></div>
+            <div class="metric"><span class="value">{{ plan.totals.recipients|default:0 }}</span><span class="label">People To Email</span></div>
+            <div class="metric"><span class="value">{{ sent_log_count }}</span><span class="label">Already Sent In Batch</span></div>
+            <div class="metric"><span class="value">{{ today.real_sent_today }}</span><span class="label">Real Emails Sent Today</span></div>
+            <div class="metric"><span class="value">{{ today.real_sent_rolling_24h }}</span><span class="label">Real Sent Rolling 24h</span></div>
+            <div class="metric"><span class="value">{{ today.real_failed_today }}</span><span class="label">Failed Attempts Today</span></div>
+        </div>
+        <p class="subtle">
+            Delay between emails:
+            {% if send_delay_is_randomized %}
+                <strong>randomized {{ send_delay_min_seconds }}-{{ send_delay_max_seconds }} seconds</strong>
+                (configured base/minimum: {{ send_delay_seconds }} seconds).
+                Estimated wait time for this plan:
+                <strong>{{ estimated_min_send_minutes }}-{{ estimated_max_send_minutes }} minutes</strong>.
+            {% else %}
+                <strong>{{ send_delay_seconds }} seconds</strong>.
+                Estimated wait time for this plan:
+                <strong>{{ estimated_min_send_minutes }} minutes</strong>.
+            {% endif %}
+        </p>
+        <p class="subtle">
+            Hard rules: never send to an email address with a prior successful real initial send log, and never send more than {{ plan.max_people_per_company|default:15 }} successful real initial emails per company across all time.
+            Companies manually stopped here are also skipped, while the sender continues with other companies.
+        </p>
+        <form method="post" action="{% url 'send_control_set_sender_limit_view' %}" class="actions" style="margin-top:12px; margin-bottom:12px;"
+              onsubmit="return confirm('Update the daily sending limit for all sender accounts?');">
+            {% csrf_token %}
+            <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+            <label class="compact-label">
+                Sender daily limit
+                <input type="number" name="daily_limit" value="{{ sender_limit_summary.display_limit|default:30 }}" min="1" max="500">
+            </label>
+            <button class="secondary" type="submit">Set Limit For All Senders</button>
+            <span class="subtle">
+                {{ sender_limit_summary.account_count }} sender account{{ sender_limit_summary.account_count|pluralize }}.
+                Current:
+                {% if sender_limit_summary.is_uniform %}
+                    <strong>{{ sender_limit_summary.display_limit }}</strong> per sender today.
+                {% else %}
+                    mixed limits, <strong>{{ sender_limit_summary.min_limit }}-{{ sender_limit_summary.max_limit }}</strong>.
+                {% endif %}
+            </span>
+        </form>
+        <div class="actions" style="margin-top:12px; margin-bottom:12px;">
+            <form method="post" action="{% url 'send_control_batch_apollo_topup_view' %}"
+                  onsubmit="return confirm('Fetch Apollo contacts up to the max people setting for companies that already have approved generated jobs in this Send Control batch? This only fetches and syncs recipients, uses strict title/domain checks for new Apollo contacts, and will not send emails.');">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <input type="hidden" name="scope" value="approved">
+                <button class="secondary" type="submit" {% if active_run %}disabled{% endif %}>
+                    Top Up Approved Companies To {{ plan.max_people_per_company|default:30 }}
+                </button>
+            </form>
+            <form method="post" action="{% url 'send_control_batch_apollo_topup_view' %}"
+                  onsubmit="return confirm('Fetch Apollo contacts up to the max people setting for ALL companies in this batch? This may spend Apollo credits. It only fetches and syncs recipients, uses strict title/domain checks for new Apollo contacts, and will not send emails.');">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <input type="hidden" name="scope" value="all_batch">
+                <button class="secondary" type="submit" {% if active_run %}disabled{% endif %}>
+                    Top Up All Batch Companies
+                </button>
+            </form>
+            <span class="subtle">
+                These buttons fetch/sync Apollo recipients only. Use Start Sending Emails separately after review.
+            </span>
+        </div>
+        {% if send_control_topup_result %}
+            <div class="notice" style="margin-top:10px;">
+                <strong>Apollo top-up result:</strong>
+                scope={{ send_control_topup_result.scope }},
+                companies={{ send_control_topup_result.companies_seen }},
+                emails_found={{ send_control_topup_result.emails_found }},
+                credits={{ send_control_topup_result.credits_consumed }},
+                jobs_synced={{ send_control_topup_result.jobs_synced }},
+                missing_domain={{ send_control_topup_result.companies_skipped_missing_domain }},
+                errors={{ send_control_topup_result.companies_errors }}.
+            </div>
+        {% endif %}
+        <div class="actions" style="margin-top:14px;">
+            <form method="post" action="{% url 'send_control_auto_approve_view' %}"
+                  onsubmit="return confirm('Auto-approve safe jobs for the latest populated batch and unapprove unsafe jobs? Safe means generated email, at least one unsent selected recipient, and company not blocked.');">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <button class="secondary" type="submit" {% if active_run %}disabled{% endif %}>Auto-Approve Safe Jobs</button>
+            </form>
+            <form method="post" action="{% url 'send_control_set_resume_attachment_view' %}"
+                  onsubmit="return confirm('Update resume attachment setting for future sends?');">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                {% if resume_attachment_state.enabled %}
+                    <input type="hidden" name="action" value="exclude">
+                    <button class="secondary" type="submit">Do Not Attach Resume</button>
+                {% else %}
+                    <input type="hidden" name="action" value="include">
+                    <button class="safe" type="submit">Include Resume</button>
+                {% endif %}
+            </form>
+            <form method="post" action="{% url 'send_control_start_view' %}" class="actions"
+                  onsubmit="return confirm('Start REAL email sending for {{ selected_batch_date }} only? Nothing will send unless jobs are approved and selected.');">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <label class="compact-label">
+                    Min delay sec
+                    <input type="number" name="delay_min_seconds" value="{{ send_delay_min_seconds }}" min="0">
+                </label>
+                <label class="compact-label">
+                    Max delay sec
+                    <input type="number" name="delay_max_seconds" value="{{ send_delay_max_seconds }}" min="0">
+                </label>
+                <button class="safe" type="submit" {% if active_run or not email_sending_state.env_enabled or not plan.totals.recipients %}disabled{% endif %}>
+                    Start Sending Emails
+                </button>
+            </form>
+            <form method="post" action="{% url 'send_control_stop_view' %}"
+                  onsubmit="return confirm('Stop email sending after the current in-progress email finishes?');">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <button class="stop" type="submit">Stop Sending</button>
+            </form>
+            {% if active_run %}
+            <form method="post" action="{% url 'send_control_clear_stuck_run_view' %}"
+                  onsubmit="return confirm('Force-clear stuck SendRun #{{ active_run.id }} and unpause sending? Only use this if the run is stuck — e.g. after a server restart.');">
+                {% csrf_token %}
+                <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                <button class="stop" type="submit" style="background:#7c3aed;">Clear Stuck Run #{{ active_run.id }}</button>
+            </form>
+            {% endif %}
+            <span class="subtle">
+                Master gate EMAIL_SENDING_ENABLED:
+                <strong>{% if email_sending_state.env_enabled %}ON{% else %}OFF{% endif %}</strong>;
+                pause switch:
+                <strong>{% if email_sending_state.paused %}ON{% else %}OFF{% endif %}</strong>.
+                Resume attachment:
+                <strong>{% if resume_attachment_state.enabled %}ON{% else %}OFF{% endif %}</strong>.
+            </span>
+        </div>
+        {% if not email_sending_state.env_enabled %}
+            <p class="bad">The master safety gate is OFF, so the Start button is disabled.</p>
+        {% elif not plan.totals.recipients %}
+            <p class="warn">No ready recipients are currently planned. Approve jobs and confirm selected recipients before sending.</p>
+        {% endif %}
+        {% if send_status.has_run %}
+            {% if active_run and email_sending_state.paused %}
+                <div class="pause-alert">
+                    <div class="alert-title">SENDING PAUSED</div>
+                    <div class="alert-detail">
+                        Run #{{ send_status.run.id }} is marked running, but the pause switch is ON, so no new emails should be sent.
+                        {% if send_status.last_email %}
+                            <br>Last sent: <strong>{{ send_status.last_email }}</strong>
+                            {% if send_status.last_activity_display %} at {{ send_status.last_activity_display }}{% endif %}.
+                        {% endif %}
+                        {% if send_status.minutes_since_last_activity != None %}
+                            <br>No successful send for about <strong>{{ send_status.minutes_since_last_activity }} minutes</strong>.
+                        {% endif %}
+                    </div>
+                </div>
+            {% elif active_run and send_status.is_waiting_for_sender %}
+                <div class="live-alert">
+                    <div class="alert-title">SENDING WAITING</div>
+                    <div class="alert-detail">
+                        Run #{{ send_status.run.id }} is active, but all active sender accounts are currently inside the sender gap or rolling quota window.
+                        {% if send_status.next_sender_available_display %}
+                            <br>Next sender should be available around <strong>{{ send_status.next_sender_available_display }}</strong>.
+                        {% endif %}
+                        {% if send_status.time_until_next_sender_seconds != None %}
+                            About <strong>{{ send_status.time_until_next_sender_seconds }} seconds</strong> left.
+                        {% endif %}
+                        {% if send_status.minutes_since_last_activity != None %}
+                            <br>Last successful send was about <strong>{{ send_status.minutes_since_last_activity }} minutes</strong> ago.
+                        {% endif %}
+                        <br>This is not a stuck run; it should continue automatically.
+                    </div>
+                </div>
+            {% elif active_run and send_status.is_stalled %}
+                <div class="stalled-alert">
+                    <div class="alert-title">SENDING STALLED</div>
+                    <div class="alert-detail">
+                        Run #{{ send_status.run.id }} is still marked running, but no new email has been logged recently.
+                        {% if send_status.last_email %}
+                            <br>Last sent: <strong>{{ send_status.last_email }}</strong>
+                            {% if send_status.last_activity_display %} at {{ send_status.last_activity_display }}{% endif %}.
+                        {% endif %}
+                        {% if send_status.minutes_since_last_activity != None %}
+                            <br>No successful send for about <strong>{{ send_status.minutes_since_last_activity }} minutes</strong>.
+                        {% endif %}
+                        <br>Use Clear Stuck Run, then Start Sending Emails to resume.
+                    </div>
+                </div>
+            {% elif active_run %}
+                <div class="live-alert">
+                    <div class="alert-title">SENDING LIVE</div>
+                    <div class="alert-detail">
+                        Run #{{ send_status.run.id }} is active.
+                        {{ send_status.sent_count }} sent, {{ send_status.failed_count }} failed, {{ send_status.pending_count }} pending.
+                        {% if send_status.progress.phase == "waiting" or send_status.progress.phase == "waiting_for_sender" %}
+                            <br>Waiting for next email. Earliest next send:
+                            {% if send_status.progress.timer_is_estimated %}
+                                <strong>checking worker log</strong>.
+                                {% if send_status.minutes_since_last_activity != None %}
+                                    Last successful send was about <strong>{{ send_status.minutes_since_last_activity }} minutes</strong> ago.
+                                {% endif %}
+                            {% else %}
+                                <strong>{{ send_status.progress.next_send_after_display|default:"calculating" }}</strong>.
+                            {% endif %}
+                            {% if not send_status.progress.timer_is_estimated and send_status.time_until_next_seconds != None %}
+                                About <strong>{{ send_status.time_until_next_seconds }} seconds</strong> left.
+                            {% endif %}
+                        {% elif send_status.progress.phase == "sending" and send_status.progress.current_recipient.email %}
+                            <br>Sending now to <strong>{{ send_status.progress.current_recipient.email }}</strong>.
+                        {% elif send_status.last_email %}
+                            <br>Last sent: <strong>{{ send_status.last_email }}</strong>.
+                        {% endif %}
+                    </div>
+                </div>
+            {% elif send_status.run.status == 'stopped' %}
+                <div class="stop-alert">
+                    <div class="alert-title">SENDING STOPPED</div>
+                    <div class="alert-detail">
+                        Run #{{ send_status.run.id }} stopped after {{ send_status.sent_count }} sent and {{ send_status.failed_count }} failed.
+                        {% if send_status.last_email %}
+                            Last email: <strong>{{ send_status.last_email }}</strong>
+                            {% if send_status.last_sender %} from {{ send_status.last_sender }}{% endif %}.
+                        {% endif %}
+                        {% if send_status.stop_reason %}
+                            <br>Reason: {{ send_status.stop_reason }}
+                        {% endif %}
+                    </div>
+                </div>
+            {% elif send_status.run.status == 'failed' %}
+                <div class="stop-alert failed">
+                    <div class="alert-title">SENDING FAILED</div>
+                    <div class="alert-detail">
+                        Run #{{ send_status.run.id }} failed after {{ send_status.sent_count }} sent and {{ send_status.failed_count }} failed.
+                        {% if send_status.last_error %}
+                            <br>Last error: {{ send_status.last_error }}
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+            <div class="status-card {% if send_status.is_safety_stop %}safety{% endif %}">
+                <h3>{% if active_run %}Current Send Status{% else %}Last Send Status{% endif %}</h3>
+                {% if active_run %}
+                    <div class="live-grid">
+                        <div class="live-box primary">
+                            <div class="title">
+                                {% if send_status.progress.phase == "sending" %}
+                                    Sending Right Now
+                                {% elif send_status.progress.phase == "waiting" or send_status.progress.phase == "waiting_for_sender" %}
+                                    Last Sent
+                                {% else %}
+                                    Current State
+                                {% endif %}
+                            </div>
+                            {% if send_status.progress.phase == "sending" and send_status.progress.current_recipient.email %}
+                                <div class="main">{{ send_status.progress.current_recipient.email }}</div>
+                                <div class="detail">
+                                    {% if send_status.progress.current_recipient.name %}{{ send_status.progress.current_recipient.name }} | {% endif %}
+                                    {{ send_status.progress.current_recipient.company }} | {{ send_status.progress.current_recipient.job_title }}
+                                    <br>sender: {{ send_status.progress.current_recipient.sender }}
+                                </div>
+                            {% elif send_status.progress.last_recipient.email %}
+                                <div class="main">{{ send_status.progress.last_recipient.email }}</div>
+                                <div class="detail">
+                                    {% if send_status.progress.last_recipient.name %}{{ send_status.progress.last_recipient.name }} | {% endif %}
+                                    {{ send_status.progress.last_recipient.company }} | {{ send_status.progress.last_recipient.job_title }}
+                                    <br>sender: {{ send_status.progress.last_recipient.sender }}
+                                </div>
+                            {% elif send_status.last_email %}
+                                <div class="main">{{ send_status.last_email }}</div>
+                                <div class="detail">last logged email</div>
+                            {% else %}
+                                <div class="main">{{ send_status.progress.phase_label|default:"Preparing sender" }}</div>
+                                <div class="detail">No email has been attempted in this run yet.</div>
+                            {% endif %}
+                        </div>
+                        <div class="live-box waiting">
+                            <div class="title">Timing</div>
+                            {% if send_status.progress.phase == "waiting_for_sender" %}
+                                <div class="main">Waiting for sender</div>
+                                <div class="detail">
+                                    Earliest next sender: {{ send_status.progress.next_send_after_display|default:"calculating" }}
+                                    {% if send_status.time_until_next_sender_seconds != None %}
+                                        <br>about {{ send_status.time_until_next_sender_seconds }} seconds left
+                                    {% endif %}
+                                </div>
+                            {% elif send_status.progress.phase == "waiting" %}
+                                <div class="main">
+                                    Waiting before next email
+                                </div>
+                                <div class="detail">
+                                    {% if send_status.progress.timer_is_estimated %}
+                                        Exact worker timer is not shared with the web process.
+                                        {% if send_status.minutes_since_last_activity != None %}
+                                            <br>Last successful send: about {{ send_status.minutes_since_last_activity }} minutes ago.
+                                        {% endif %}
+                                    {% else %}
+                                        Earliest next send: {{ send_status.progress.next_send_after_display|default:"calculating" }}
+                                    {% endif %}
+                                    {% if not send_status.progress.timer_is_estimated and send_status.time_until_next_seconds != None %}
+                                        <br>about {{ send_status.time_until_next_seconds }} seconds left
+                                    {% endif %}
+                                </div>
+                            {% elif send_status.progress.phase == "sending" %}
+                                <div class="main">SMTP send in progress</div>
+                                <div class="detail">The next wait starts after this email finishes.</div>
+                            {% else %}
+                                <div class="main">{{ send_status.progress.phase_label|default:"Preparing" }}</div>
+                                <div class="detail">The sender is active and checking the next safe action.</div>
+                            {% endif %}
+                        </div>
+                        <div class="live-box">
+                            <div class="title">Next Planned Email</div>
+                            {% if send_status.next_recipient.email %}
+                                <div class="main">{{ send_status.next_recipient.email }}</div>
+                                <div class="detail">
+                                    {% if send_status.next_recipient.name %}{{ send_status.next_recipient.name }} | {% endif %}
+                                    {{ send_status.next_recipient.company }} | {{ send_status.next_recipient.job_title }}
+                                </div>
+                            {% else %}
+                                <div class="main">No next recipient planned</div>
+                                <div class="detail">The plan may be complete or blocked by safety rules.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+                <div class="status-row">
+                    <div class="status-label">Run</div>
+                    <div class="status-value">
+                        <strong>#{{ send_status.run.id }}</strong>
+                        <span class="pill {% if send_status.run.status == 'running' %}amber{% elif send_status.run.status == 'success' %}green{% elif send_status.run.status == 'failed' or send_status.is_safety_stop %}red{% else %}amber{% endif %}">
+                            {{ send_status.run.status }}
+                        </span>
+                        started {{ send_status.run.started_at|default:"-" }},
+                        finished {{ send_status.run.finished_at|default:"-" }}
+                    </div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">This Run</div>
+                    <div class="status-value">
+                        {{ send_status.sent_count }} sent,
+                        {{ send_status.failed_count }} failed,
+                        {{ send_status.pending_count }} pending,
+                        {{ send_status.attempted_count }} attempted
+                    </div>
+                </div>
+                <div class="status-row">
+                    <div class="status-label">Last Email</div>
+                    <div class="status-value">
+                        {% if send_status.last_email %}
+                            <strong>{{ send_status.last_email }}</strong>
+                            {% if send_status.last_recipient_name %}to {{ send_status.last_recipient_name }}{% endif %}
+                            {% if send_status.last_company %} | {{ send_status.last_company }}{% endif %}
+                            {% if send_status.last_job_title %} | {{ send_status.last_job_title }}{% endif %}
+                            {% if send_status.last_sender %}<br><span class="subtle">sender: {{ send_status.last_sender }} | status: {{ send_status.last_status }}</span>{% endif %}
+                        {% elif send_status.stopped_before_attempt %}
+                            <span class="warn">No email was attempted in this run.</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </div>
+                </div>
+                {% if send_status.last_error %}
+                    <div class="status-row">
+                        <div class="status-label">Last Error</div>
+                        <div class="status-value bad">{{ send_status.last_error }}</div>
+                    </div>
+                {% endif %}
+                {% if send_status.stop_reason %}
+                    <div class="status-row">
+                        <div class="status-label">Reason / Notes</div>
+                        <div class="status-value status-note {% if send_status.is_safety_stop %}bad{% endif %}">{{ send_status.stop_reason }}</div>
+                    </div>
+                {% endif %}
+                {% if send_status.run_log_tail %}
+                    <div class="run-log-title">Latest Run Log</div>
+                    <div class="run-log-tail">{% for line in send_status.run_log_tail %}{{ line }}
+{% endfor %}</div>
+                {% endif %}
+            </div>
+        {% endif %}
+        {% if auto_approve_result %}
+            <details open>
+                <summary>Latest auto-approval result</summary>
+                {% if auto_approve_result.error %}
+                    <p class="bad">{{ auto_approve_result.error }}</p>
+                {% else %}
+                    <table>
+                        <tr><th>Batch date</th><td>{{ auto_approve_result.batch_date }}</td></tr>
+                        <tr><th>Jobs seen</th><td>{{ auto_approve_result.jobs_seen }}</td></tr>
+                        <tr><th>Approved</th><td>{{ auto_approve_result.approved }}</td></tr>
+                        <tr><th>Unapproved</th><td>{{ auto_approve_result.unapproved }}</td></tr>
+                        <tr><th>Safe recipients</th><td>{{ auto_approve_result.safe_recipient_count }}</td></tr>
+                        <tr><th>Reasons</th><td>{{ auto_approve_result.reasons }}</td></tr>
+                    </table>
+                {% endif %}
+            </details>
+        {% endif %}
+    </div>
+
+    <div class="panel">
+        <h2>Skip Counts</h2>
+        <table>
+            <tr><th>Reason</th><th>Count</th></tr>
+            <tr><td>Jobs seen</td><td>{{ plan.totals.jobs_seen }}</td></tr>
+            <tr><td>Approved jobs</td><td>{{ plan.totals.approved_jobs }}</td></tr>
+            <tr><td>Skipped not approved</td><td>{{ plan.totals.skipped_not_approved }}</td></tr>
+            <tr><td>Skipped missing generated email</td><td>{{ plan.totals.skipped_no_generated_email }}</td></tr>
+            <tr><td>Skipped no unsent recipients</td><td>{{ plan.totals.skipped_no_recipients }}</td></tr>
+            <tr><td>Recipients skipped already sent</td><td>{{ plan.totals.skipped_already_sent }}</td></tr>
+            <tr><td>Recipients skipped pending/unknown</td><td>{{ plan.totals.skipped_pending_send }}</td></tr>
+            <tr><td>Recipients skipped suppressed</td><td>{{ plan.totals.skipped_suppressed }}</td></tr>
+            <tr><td>Jobs skipped because company sends are stopped</td><td>{{ plan.totals.skipped_company_blocked }}</td></tr>
+            <tr><td>Recipients skipped by {{ plan.max_people_per_company|default:20 }}-per-company cap</td><td>{{ plan.totals.skipped_company_cap }}</td></tr>
+        </table>
+    </div>
+
+    <div class="panel">
+        <h2>Sender Usage Today</h2>
+        <table>
+            <tr><th>Sender</th><th>Sent Today</th><th>Failed Today</th><th>Last Error</th></tr>
+            {% for usage in today.sender_rows %}
+                <tr>
+                    <td>{{ usage.email }}</td>
+                    <td>{{ usage.sent_count }}</td>
+                    <td>{% if usage.failed_count %}<span class="bad">{{ usage.failed_count }}</span>{% else %}0{% endif %}</td>
+                    <td>{{ usage.last_error|default:"-"|truncatechars:180 }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4">No sender usage rows today.</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="panel">
+        <h2>Sender Domain Usage</h2>
+        <table>
+            <tr><th>Domain</th><th>Active Senders</th><th>Sent Rolling 24h</th></tr>
+            {% for row in today.domain_rows %}
+                <tr>
+                    <td>{{ row.domain }}</td>
+                    <td>{{ row.active_senders }}</td>
+                    <td>{{ row.sent_rolling_24h }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="3">No sender domains found.</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    {% if blocked_company_rows %}
+    <div class="panel wide">
+        <h2>Stopped Companies For This Batch</h2>
+        <p class="subtle">
+            These companies are manually blocked from sending. The active sender skips them and continues with other planned companies.
+        </p>
+        <table>
+            <tr><th>Company</th><th>Jobs In This Batch</th><th>Already Sent In Batch</th><th>Note</th><th>Action</th></tr>
+            {% for row in blocked_company_rows %}
+                <tr>
+                    <td>
+                        <strong>{{ row.name }}</strong>
+                        {% if row.domain %}<br><span class="subtle">{{ row.domain }}</span>{% endif %}
+                    </td>
+                    <td>
+                        {% for job in row.jobs %}
+                            Job {{ job.id }} - {{ job.title }}{% if not forloop.last %}<br>{% endif %}
+                        {% empty %}
+                            -
+                        {% endfor %}
+                    </td>
+                    <td>{{ row.sent_count }}</td>
+                    <td>{{ row.notes|default:"-"|truncatechars:220 }}</td>
+                    <td>
+                        <form method="post" action="{% url 'send_control_company_block_view' %}"
+                              onsubmit="return confirm('Resume sending to {{ row.name }}?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                            <input type="hidden" name="company_id" value="{{ row.company_id }}">
+                            <input type="hidden" name="action" value="unblock">
+                            <button type="submit" class="secondary" style="font-size:12px;min-height:30px;padding:4px 10px;">Resume Sends</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+
+    <div class="panel wide">
+        <h2>Companies And Planned Emails</h2>
+        <p class="subtle">Shows every company that currently has at least one unsent planned recipient. Each company includes one full email preview.</p>
+        {% for company in plan.companies %}
+            <details open>
+                <summary>
+                    <strong>{{ company.company }}</strong>
+                    <span class="pill">{{ company.recipient_emails|length }} recipient{{ company.recipient_emails|length|pluralize }}</span>
+                    <span class="subtle">{{ company.recipient_emails|join:", " }}</span>
+                </summary>
+                {% if company.company_ref_id %}
+                <div class="actions" style="margin:10px 0 6px;">
+                    <form method="post" action="{% url 'send_control_company_block_view' %}"
+                          onsubmit="return confirm('Stop all future sends to {{ company.company }}? The current run will skip this company and continue with other companies.');">
+                        {% csrf_token %}
+                        <input type="hidden" name="batch_date" value="{{ selected_batch_date }}">
+                        <input type="hidden" name="company_id" value="{{ company.company_ref_id }}">
+                        <input type="hidden" name="action" value="block">
+                        <input type="hidden" name="reason" value="manual reply / no more sends">
+                        <button type="submit" class="stop" style="font-size:12px;min-height:30px;padding:4px 10px;">
+                            Stop Sends To This Company
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'force_apollo_company_topup' %}"
+                          onsubmit="return confirm('Force-fetch new data/ML contacts for {{ company.company }}? This will spend Apollo credits to find new contacts and send to up to 20 people total.');">
+                        {% csrf_token %}
+                        <input type="hidden" name="company_id" value="{{ company.company_ref_id }}">
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit" class="secondary" style="font-size:12px;min-height:30px;padding:4px 10px;">
+                            Force Fetch Data/ML Contacts
+                        </button>
+                    </form>
+                    <span class="subtle" style="font-size:12px;">Stopping this company does not stop the active send run for other companies.</span>
+                </div>
+                {% endif %}
+                <h3>Preview Subject</h3>
+                <p><strong>{{ company.preview_subject }}</strong></p>
+                <h3>One Full Email Preview</h3>
+                <div class="email-preview">{{ company.preview_body }}</div>
+                <h3>Planned Jobs And People</h3>
+                <table>
+                    <tr><th>Job</th><th>Subject</th><th>People</th></tr>
+                    {% for job in company.jobs %}
+                        <tr>
+                            <td>Job {{ job.job.id }} - {{ job.job.title }}</td>
+                            <td>{{ job.subject }}</td>
+                            <td>
+                                {% for r in job.recipients %}
+                                    {% if r.apollo_linkedin_url %}
+                                        <a href="{{ r.apollo_linkedin_url }}" target="_blank" rel="noopener noreferrer">{{ r.name }}</a>
+                                    {% else %}
+                                        {{ r.name }}
+                                    {% endif %}
+                                    {% if r.apollo_title %}<span style="color:var(--muted);font-size:12px;"> · {{ r.apollo_title }}</span>{% endif %}
+                                    &lt;{{ r.email }}&gt;{% if not forloop.last %}<br>{% endif %}
+                                {% endfor %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            </details>
+        {% empty %}
+            <p class="warn">No planned company emails are ready right now.</p>
+        {% endfor %}
+    </div>
+
+    <div class="panel wide">
+        <h2>Sent People For This Batch</h2>
+        <p class="subtle">
+            This is the resume point. If sending stops and you start again, these email addresses are skipped.
+            Showing latest {{ sent_logs|length }} rows; total sent in this batch is {{ sent_log_count }}.
+        </p>
+        <table>
+            <tr>
+                <th>Sent At</th>
+                <th>Company</th>
+                <th>Job</th>
+                <th>Person</th>
+                <th>Email</th>
+                <th>Sender</th>
+            </tr>
+            {% for row in sent_logs %}
+                <tr>
+                    <td>{{ row.sent_at }}</td>
+                    <td>{{ row.company }}</td>
+                    <td>Job {{ row.job_id }} - {{ row.job_title }}</td>
+                    <td>{{ row.name|default:"-" }}</td>
+                    <td>{{ row.email }}</td>
+                    <td>{{ row.sender|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6">No real initial emails have been sent for this batch yet.</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="panel wide">
+        <h2>Failed Attempts Today</h2>
+        <p class="subtle">These did not send successfully. Failed recipients are not marked as sent, so they can be retried after the sender issue is fixed.</p>
+        <table>
+            <tr>
+                <th>Company</th>
+                <th>Job</th>
+                <th>Person</th>
+                <th>Email</th>
+                <th>Sender</th>
+                <th>Error</th>
+            </tr>
+            {% for row in failed_logs_today %}
+                <tr>
+                    <td>{{ row.company }}</td>
+                    <td>Job {{ row.job_id }} - {{ row.job_title }}</td>
+                    <td>{{ row.name|default:"-" }}</td>
+                    <td>{{ row.email }}</td>
+                    <td>{{ row.sender|default:"-" }}</td>
+                    <td>{{ row.error|truncatechars:260 }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6">No failed real send attempts today.</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endif %}
+</body>
+</html>

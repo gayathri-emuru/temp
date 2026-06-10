@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cold Email Operations</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; background: #f7f7f9; color: #222; }
+        h1 { margin-bottom: 20px; }
+        .messages { margin-bottom: 20px; }
+        .message { padding: 12px; margin-bottom: 10px; border-radius: 6px; }
+        .success { background: #e8f7e8; border: 1px solid #88c488; }
+        .error { background: #fdeaea; border: 1px solid #d88; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: white; border-radius: 8px; padding: 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .card h2 { margin-top: 0; font-size: 20px; }
+        label { font-weight: bold; display: block; margin-top: 10px; margin-bottom: 4px; }
+        input[type="text"], input[type="number"], textarea { width: 100%; padding: 10px; border: 1px solid #bbb; border-radius: 6px; box-sizing: border-box; }
+        textarea { resize: vertical; }
+        button { margin-top: 14px; background: #1f6feb; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; }
+        button:hover { background: #1659c0; }
+        button.secondary { background: #334155; }
+        button.secondary:hover { background: #1f2937; }
+        pre { background: #111; color: #eaeaea; padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+        .small { color: #555; font-size: 13px; }
+        .wide { grid-column: 1 / -1; }
+        a.link { display:inline-block; padding:10px 14px; background:#2563eb; color:#fff; border-radius:8px; text-decoration:none; }
+        a.link:hover { background:#1d4ed8; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; vertical-align: top; }
+        th { background: #f3f4f6; text-align: left; }
+        .muted { color: #666; }
+        .nowrap { white-space: nowrap; }
+    </style>
+</head>
+<body>
+<h1>Cold Email Operations Dashboard</h1>
+
+{% if messages %}
+<div class="messages">
+    {% for message in messages %}
+    <div class="message {% if message.tags == 'success' %}success{% else %}error{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="grid">
+    <div class="card wide">
+        <h2>Safety + Prompt</h2>
+        <p class="small">
+            Email sending (effective):
+            <strong>{% if email_sending_enabled %}YES{% else %}NO{% endif %}</strong>
+            <span class="muted">
+                (env <code>EMAIL_SENDING_ENABLED</code>:
+                <strong>{% if email_sending_state.env_enabled %}ON{% else %}OFF{% endif %}</strong>
+                |
+                dashboard pause:
+                <strong>{% if email_sending_state.paused %}ON{% else %}OFF{% endif %}</strong>)
+            </span>
+        </p>
+        <form method="post" action="{% url 'toggle_email_sending_view' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            {% if email_sending_state.paused %}
+                <input type="hidden" name="action" value="resume">
+                <button type="submit" style="background:#16a34a;">Resume Email Sending</button>
+            {% else %}
+                <input type="hidden" name="action" value="pause">
+                <button type="submit" style="background:#dc2626;">Pause Email Sending</button>
+            {% endif %}
+        </form>
+        <p class="small">
+            Cold email prompt version:
+            <strong>{{ cold_email_prompt_info.prompt_version|default:"-" }}</strong>
+            {% if cold_email_prompt_info.error %}
+                <span style="color:#b91c1c;">(error: {{ cold_email_prompt_info.error }})</span>
+            {% endif %}
+        </p>
+        <p class="small">
+            Manage prompts in Admin: <a href="/admin/core/prompttemplate/" target="_blank" rel="noopener noreferrer">Prompt Templates</a>
+        </p>
+        <p class="small">
+            Dedicated manual URL importers:
+            <a href="{% url 'manual_linkedin_flow' %}">Manual LinkedIn Flow</a>
+            <a href="{% url 'live_company_reply_dashboard' %}">Live Reply Stops</a>
+            |
+            <a href="{% url 'manual_dice_flow' %}">Manual Dice Flow</a>
+            |
+            <a href="{% url 'linkedin_job_id_mapper' %}">LinkedIn Job ID Mapper</a>
+        </p>
+        <p class="small">
+            LinkedIn post outreach: <a href="{% url 'linkedin_post_preview' %}">LinkedIn Post Outreach</a>
+        </p>
+        <p class="small">
+            Manual reviewed-list sender: <a href="{% url 'manual_bulk_email' %}">Manual Bulk Email</a>
+        </p>
+        <p class="small">
+            Consultancy reviewed sender: <a href="{% url 'consultancy_outreach' %}">Consultancy Outreach</a>
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>1) Import Jobs (Apify &rarr; OpenAI filter &rarr; cooldown &rarr; store)</h2>
+        <form method="post" action="{% url 'run_import_pipeline_view' %}">
+            {% csrf_token %}
+            {{ import_form.as_p }}
+            <button type="submit">Run Import</button>
+        </form>
+
+        {% if import_result %}
+        <h3>Result</h3>
+        {% if import_result.ok %}
+            <table class="result-table">
+                <tr><th class="nowrap">Raw jobs (Apify)</th><td>{{ import_result.raw_jobs }}</td></tr>
+                <tr><th>Apply jobs</th><td>{{ import_result.apply_jobs }}</td></tr>
+                <tr><th>Rejected (OpenAI)</th><td>{{ import_result.rejected_jobs }}</td></tr>
+                <tr><th>Deduped</th><td>{{ import_result.deduped_jobs }}</td></tr>
+                <tr><th>Created</th><td>{{ import_result.created_jobs }}</td></tr>
+                <tr><th>Errors</th><td>{{ import_result.job_errors }}</td></tr>
+            </table>
+            <details style="margin-top:10px;">
+                <summary class="small">Full details</summary>
+                <pre>{{ import_result }}</pre>
+            </details>
+        {% else %}
+            <div style="color:#b91c1c; font-weight:600; margin:10px 0;">
+                Import failed: {{ import_result.error|default:"Unknown error" }}
+            </div>
+            <table class="result-table">
+                <tr><th class="nowrap">Raw jobs (Apify)</th><td>{{ import_result.raw_jobs|default:"0" }}</td></tr>
+                <tr><th>Apply jobs</th><td>{{ import_result.apply_jobs|default:"0" }}</td></tr>
+                <tr><th>Rejected (OpenAI)</th><td>{{ import_result.rejected_jobs|default:"0" }}</td></tr>
+                <tr><th>Deduped</th><td>{{ import_result.deduped_jobs|default:"0" }}</td></tr>
+                <tr><th>Created</th><td>{{ import_result.created_jobs|default:"0" }}</td></tr>
+            </table>
+            <details style="margin-top:10px;">
+                <summary class="small">Full details</summary>
+                <pre>{{ import_result }}</pre>
+            </details>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>2) Test Email Delivery (Sender accounts &rarr; Test email accounts)</h2>
+        <p class="small">
+            Safety: delivery tests send only to <strong>Test email accounts</strong>. If you paste a new recipient,
+            it is saved as an active Test email account before the run.
+        </p>
+        <form method="post" action="{% url 'run_test_email_delivery_view' %}">
+            {% csrf_token %}
+            {{ test_email_delivery_form.as_p }}
+            <button type="submit">Run Delivery Test</button>
+        </form>
+
+        {% if test_email_delivery_result %}
+        <h3>Result</h3>
+        {% if test_email_delivery_result.totals %}
+            <table class="result-table">
+                <tr><th class="nowrap">Send run id</th><td>{{ test_email_delivery_result.totals.send_run_id }}</td></tr>
+                <tr><th>Job id</th><td>{{ test_email_delivery_result.totals.job_id }}</td></tr>
+                <tr><th>Senders</th><td>{{ test_email_delivery_result.totals.senders }}</td></tr>
+                <tr><th>Test recipients</th><td>{{ test_email_delivery_result.totals.test_recipients }}</td></tr>
+                <tr><th>New test recipients</th><td>{{ test_email_delivery_result.totals.created_test_recipients|length }}</td></tr>
+                <tr><th>Attempted</th><td>{{ test_email_delivery_result.totals.emails_attempted }}</td></tr>
+                <tr><th>Sent</th><td>{{ test_email_delivery_result.totals.emails_sent }}</td></tr>
+                <tr><th>Failed</th><td>{{ test_email_delivery_result.totals.emails_failed }}</td></tr>
+                <tr><th class="nowrap">Run log</th><td><code>{{ test_email_delivery_result.totals.run_log_path }}</code></td></tr>
+            </table>
+            <details style="margin-top:10px;">
+                <summary class="small">Full details</summary>
+                <pre>{{ test_email_delivery_result }}</pre>
+            </details>
+        {% else %}
+            <div style="color:#b91c1c; font-weight:600; margin:10px 0;">
+                Delivery test failed: {{ test_email_delivery_result.error|default:"Unknown error" }}
+            </div>
+            <details style="margin-top:10px;">
+                <summary class="small">Full details</summary>
+                <pre>{{ test_email_delivery_result }}</pre>
+            </details>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="card wide">
+        <h2>2b) Prompt Experiment (Selected Job ID &rarr; Claude)</h2>
+        <p class="small">
+            Temporary tool: paste a prompt, click Generate, and see the subject/body output.
+            <strong>This does not send any email.</strong>
+        </p>
+        <form method="post" action="{% url 'prompt_experiment_generate_view' %}">
+            {% csrf_token %}
+            {{ prompt_experiment_form.as_p }}
+            <button type="submit">Generate Subject + Body</button>
+        </form>
+
+        {% if prompt_experiment_result %}
+        <h3>Result</h3>
+        {% if prompt_experiment_result.ok %}
+            <table class="result-table">
+                <tr><th class="nowrap">Job id</th><td>{{ prompt_experiment_result.job_id }}</td></tr>
+                <tr><th>Company</th><td>{{ prompt_experiment_result.company }}</td></tr>
+                <tr><th>Title</th><td>{{ prompt_experiment_result.title }}</td></tr>
+                <tr><th class="nowrap">Prompt version</th><td><code>{{ prompt_experiment_result.prompt_version }}</code></td></tr>
+                <tr><th class="nowrap">Run log</th><td><code>{{ prompt_experiment_result.run_log_path }}</code></td></tr>
+            </table>
+            <h4>Subject</h4>
+            <pre>{{ prompt_experiment_result.subject }}</pre>
+            <h4>Body</h4>
+            <pre>{{ prompt_experiment_result.body }}</pre>
+        {% else %}
+            <div style="color:#b91c1c; font-weight:600; margin:10px 0;">
+                Prompt experiment failed: {{ prompt_experiment_result.error|default:"Unknown error" }}
+            </div>
+            {% if prompt_experiment_result.run_log_path %}
+                <div class="small">Run log: <code>{{ prompt_experiment_result.run_log_path }}</code></div>
+            {% endif %}
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="card wide">
+        <h2>2c) Company Domains (Manual)</h2>
+        <p class="small">
+            Step 1: Generate a JSON template of companies. Step 2: paste your edited JSON mapping to save domains into
+            <code>Company.active_domain</code>.
+        </p>
+
+        <form method="post" action="{% url 'company_domain_mapping_template_view' %}">
+            {% csrf_token %}
+            {{ company_domain_mapping_template_form.as_p }}
+            <button type="submit">Generate Company→Domain Template</button>
+        </form>
+
+        {% if company_domain_mapping_template_result %}
+        <h3>Template</h3>
+        {% if company_domain_mapping_template_result.ok %}
+            <pre id="company-domain-template">{{ company_domain_mapping_template_result.text }}</pre>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <button type="button" class="secondary" id="copy-company-domain-template-btn">Copy Template to Clipboard</button>
+                <span class="small" id="copy-company-domain-template-status" aria-live="polite"></span>
+            </div>
+        {% else %}
+            <div style="color:#b91c1c; font-weight:600; margin:10px 0;">
+                Template generation failed: {{ company_domain_mapping_template_result.error|default:"Unknown error" }}
+            </div>
+        {% endif %}
+        {% endif %}
+
+        <hr style="margin:18px 0; border:0; border-top:1px solid #eee;">
+
+        <form method="post" action="{% url 'company_domain_mapping_apply_view' %}">
+            {% csrf_token %}
+            {{ company_domain_mapping_apply_form.as_p }}
+            <button type="submit">Apply Mapping to Database</button>
+        </form>
+
+        {% if company_domain_mapping_apply_result %}
+        <h3>Apply result</h3>
+        {% if company_domain_mapping_apply_result.ok %}
+            <details style="margin-top:10px;">
+                <summary class="small">Summary + details</summary>
+                <pre>{{ company_domain_mapping_apply_result.result }}</pre>
+            </details>
+        {% else %}
+            <div style="color:#b91c1c; font-weight:600; margin:10px 0;">
+                Apply mapping failed: {{ company_domain_mapping_apply_result.error|default:"Unknown error" }}
+            </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="card wide">
+        <h2>2d) Legacy Company Domains (Range Backfill)</h2>
+        <p class="small">
+            Generate a JSON dictionary for <code>Company.legacy=True</code> companies by row range, fill in the domains,
+            then apply it back to legacy companies only. This prepares legacy recruiter matching before Apollo.
+        </p>
+
+        <form method="post" action="{% url 'legacy_company_domain_template_view' %}">
+            {% csrf_token %}
+            {{ legacy_company_domain_template_form.as_p }}
+            <button type="submit">Generate Legacy Domain Template</button>
+        </form>
+
+        {% if legacy_company_domain_template_result %}
+        <h3>Legacy Template</h3>
+        {% if legacy_company_domain_template_result.ok %}
+            <div class="small">
+                Range {{ legacy_company_domain_template_result.start_range }}-{{ legacy_company_domain_template_result.end_range }};
+                checked {{ legacy_company_domain_template_result.selected_range_count }} of {{ legacy_company_domain_template_result.total_legacy_companies_in_scope }} legacy companies;
+                returned {{ legacy_company_domain_template_result.returned }}{% if legacy_company_domain_template_result.only_missing %} missing usable domains{% else %} companies{% endif %}.
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <button type="button" class="secondary" id="copy-legacy-company-domain-template-btn">Copy Legacy Template to Clipboard</button>
+                <button type="button" class="secondary" id="copy-legacy-company-names-btn">Copy Company Names to Clipboard</button>
+                <span class="small" id="copy-legacy-company-domain-template-status" aria-live="polite"></span>
+                <span class="small" id="copy-legacy-company-names-status" aria-live="polite"></span>
+            </div>
+            <pre id="legacy-company-domain-template">{{ legacy_company_domain_template_result.text }}</pre>
+            <pre id="legacy-company-names" style="display:none;">{{ legacy_company_domain_template_result.company_names_text }}</pre>
+            <details style="margin-top:10px;">
+                <summary class="small">Rows included</summary>
+                <pre>{{ legacy_company_domain_template_result.rows }}</pre>
+            </details>
+        {% else %}
+            <div style="color:#b91c1c; font-weight:600; margin:10px 0;">
+                Legacy template generation failed: {{ legacy_company_domain_template_result.error|default:"Unknown error" }}
+            </div>
+        {% endif %}
+        {% endif %}
+
+        <hr style="margin:18px 0; border:0; border-top:1px solid #eee;">
+
+        <form method="post" action="{% url 'legacy_company_domain_apply_view' %}">
+            {% csrf_token %}
+            {{ legacy_company_domain_apply_form.as_p }}
+            <button type="submit">Apply Legacy Domains to Database</button>
+        </form>
+
+        {% if legacy_company_domain_apply_result %}
+        <h3>Legacy apply result</h3>
+        {% if legacy_company_domain_apply_result.ok %}
+            <details style="margin-top:10px;">
+                <summary class="small">Summary + details</summary>
+                <pre>{{ legacy_company_domain_apply_result.result }}</pre>
+            </details>
+        {% else %}
+            <div style="color:#b91c1c; font-weight:600; margin:10px 0;">
+                Legacy apply failed: {{ legacy_company_domain_apply_result.error|default:"Unknown error" }}
+            </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>1b) Manual LinkedIn Import (URLs &rarr; clean &rarr; cooldown/dedupe &rarr; scrape &rarr; store)</h2>
+        <p class="small">
+            Paste LinkedIn <code>/jobs/view/</code> URLs. The importer strips tracking params, skips duplicates,
+            and (optionally) skips companies with recent sends/imports.
+        </p>
+        <form method="post" action="{% url 'manual_linkedin_import_view' %}">
+            {% csrf_token %}
+            {{ linkedin_manual_import_form.as_p }}
+            <button type="submit">Import LinkedIn URLs</button>
+        </form>
+
+        {% if linkedin_manual_import_result %}
+        <h3>Summary</h3>
+        <table>
+            <tr><th class="nowrap">Run log</th><td><code>{{ linkedin_manual_import_result.run_log_path }}</code></td></tr>
+            <tr><th>Inputs</th><td>{{ linkedin_manual_import_result.raw_lines }} {% if linkedin_manual_import_result.truncated_to_max_urls %}<span class="muted">(truncated to max {{ linkedin_manual_import_result.max_urls }})</span>{% endif %}</td></tr>
+            <tr><th>Queued</th><td>{{ linkedin_manual_import_result.queued_urls }}</td></tr>
+            <tr><th>Created</th><td>{{ linkedin_manual_import_result.created_jobs }}</td></tr>
+            {% if linkedin_manual_import_result.created_job_ids %}
+            <tr><th>Created job ids</th><td><code>{{ linkedin_manual_import_result.created_job_ids }}</code></td></tr>
+            {% endif %}
+            <tr><th>Skipped existing URL</th><td>{{ linkedin_manual_import_result.skipped_existing_url }}</td></tr>
+            <tr><th>Skipped existing job id</th><td>{{ linkedin_manual_import_result.skipped_existing_external_job_id }}</td></tr>
+            <tr><th>Skipped duplicates</th><td>{{ linkedin_manual_import_result.skipped_duplicate }}</td></tr>
+            <tr><th>Skipped cooldown</th><td>{{ linkedin_manual_import_result.skipped_company_cooldown }}</td></tr>
+            <tr><th>Skipped blocked</th><td>{{ linkedin_manual_import_result.skipped_blocked_company }}</td></tr>
+            <tr><th>Invalid URLs</th><td>{{ linkedin_manual_import_result.invalid_urls }}</td></tr>
+            <tr><th>Scrape failed</th><td>{{ linkedin_manual_import_result.scrape_failed }}</td></tr>
+            <tr><th>Rejected (classifier)</th><td>{{ linkedin_manual_import_result.filtered_reject }}</td></tr>
+            <tr><th>Errors</th><td>{{ linkedin_manual_import_result.job_errors }}</td></tr>
+        </table>
+
+        <h3>URLs</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>Raw</th>
+                <th>Cleaned</th>
+                <th class="nowrap">Status</th>
+                <th>Detail</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in linkedin_manual_import_result.url_rows %}
+                <tr>
+                    <td><div class="muted">{{ row.raw_url }}</div></td>
+                    <td>{% if row.normalized_url %}<a href="{{ row.normalized_url }}" target="_blank" rel="noopener noreferrer">{{ row.normalized_url }}</a>{% else %}-{% endif %}</td>
+                    <td class="nowrap">{{ row.status }}</td>
+                    <td class="muted">{{ row.detail }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <h3>Jobs</h3>
+        <table>
+            <thead>
+            <tr>
+                <th class="nowrap">Job ID</th>
+                <th>Company</th>
+                <th>Title</th>
+                <th class="nowrap">Status</th>
+                <th>Detail</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in linkedin_manual_import_result.job_status_rows %}
+                <tr>
+                    <td class="nowrap">{{ row.job_id|default:"-" }}</td>
+                    <td>{{ row.company|default:"-" }}</td>
+                    <td>{{ row.title|default:"-" }}</td>
+                    <td class="nowrap">{{ row.status }}</td>
+                    <td class="muted">{{ row.detail }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>Unused) Upload Company Contacts (legacy admin fallback)</h2>
+        <p class="small">Normal flow skips this. Recipients come from saved allowed contacts first, then Apollo verified data/ML contacts as top-up.</p>
+        <form method="post" action="{% url 'process_recruiter_json_view' %}">
+            {% csrf_token %}
+            {{ recruiter_json_form.as_p }}
+            <button type="submit">Process Recruiter JSON</button>
+        </form>
+
+        {% if recruiter_json_result %}
+        <h3>Summary</h3>
+        <pre>{{ recruiter_json_result.summary }}</pre>
+        <h3>Files</h3>
+        <pre>{{ recruiter_json_result.files }}</pre>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>3) Apply Recruiter Decisions (only if needed)</h2>
+        <p class="small">Only needed when company name matching is ambiguous and you want to map/merge.</p>
+        <form method="post" action="{% url 'apply_recruiter_decisions_view' %}">
+            {% csrf_token %}
+            {{ decision_form.as_p }}
+            <button type="submit">Apply Decisions</button>
+        </form>
+
+        {% if decision_result %}
+        <h3>Stats</h3>
+        <pre>{{ decision_result.stats }}</pre>
+        <h3>Errors</h3>
+        <pre>{{ decision_result.errors }}</pre>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>4) Allowed Contacts + Apollo Verified Top-up</h2>
+        <p class="small">
+            Uses existing allowed contacts first. If fewer than 10 usable contacts exist, uses <code>Company.active_domain</code>
+            and the latest Apify job location to top up with Apollo verified data/ML contact emails only.
+            Leave company blank to process only latest-batch pending companies missing emails.
+        </p>
+        <form method="post" action="{% url 'run_apollo_recruiter_fetch_view' %}">
+            {% csrf_token %}
+            {{ apollo_recruiter_fetch_form.as_p }}
+            <button type="submit">Fetch People from Apollo</button>
+        </form>
+
+        {% if apollo_recruiter_fetch_result %}
+        <h3>Totals</h3>
+        <pre>{{ apollo_recruiter_fetch_result.totals }}</pre>
+        <h3>Companies</h3>
+        <pre>{{ apollo_recruiter_fetch_result.companies }}</pre>
+        {% endif %}
+    </div>
+
+    <div class="card wide">
+        <h2>5) Generate Cold Emails</h2>
+        <form method="post" action="{% url 'run_generate_cold_emails_view' %}">
+            {% csrf_token %}
+            {{ generate_cold_emails_form.as_p }}
+            <button type="submit" name="generation_scope" value="missing">Generate Missing Cold Emails</button>
+            <button type="submit" name="generation_scope" value="all">Regenerate All Cold Emails</button>
+        </form>
+
+        {% if generate_cold_emails_result %}
+        <h3>Totals</h3>
+        <pre>{{ generate_cold_emails_result.totals }}</pre>
+        {% endif %}
+    </div>
+
+    <div class="card wide">
+        <h2>6) Review + Approve + Send</h2>
+        <p class="small">
+            Pick recipients for initial send per job, pick follow-ups per company, then send.
+            <strong>Note:</strong> sending requires <code>EMAIL_SENDING_ENABLED=1</code> and the dashboard kill-switch to be resumed.
+        </p>
+        <a class="link" href="{% url 'read_only_review_dashboard' %}">Open Read-only Review Dashboard</a>
+        <a class="link" href="{% url 'send_control_dashboard' %}" style="margin-left: 10px;">Open Send Control</a>
+        <a class="link" href="{% url 'inbox_monitor_dashboard' %}" style="margin-left: 10px;">Open Inbox Monitor</a>
+        <a class="link" href="{% url 'followup_dashboard' %}" style="margin-left: 10px;">Open Follow-Ups</a>
+        <form method="post" action="{% url 'inbox_monitor_scan_now' %}" style="display:inline; margin-left:10px;">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit">Scan Inboxes</button>
+        </form>
+    </div>
+</div>
+<script>
+    (function () {
+        function copyText(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            }
+
+            return new Promise(function (resolve, reject) {
+                try {
+                    var textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    textarea.style.position = 'fixed';
+                    textarea.style.top = '-1000px';
+                    textarea.style.left = '-1000px';
+                    document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+                    var ok = document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    if (ok) resolve();
+                    else reject(new Error('Copy failed'));
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            function wireCopy(buttonId, templateId, statusId) {
+                var copyBtn = document.getElementById(buttonId);
+                var templateEl = document.getElementById(templateId);
+                var statusEl = document.getElementById(statusId);
+
+                if (!copyBtn || !templateEl) return;
+
+                copyBtn.addEventListener('click', function () {
+                var text = templateEl.textContent || '';
+                if (statusEl) statusEl.textContent = '';
+
+                copyText(text).then(function () {
+                    if (statusEl) statusEl.textContent = 'Copied.';
+                }).catch(function () {
+                    if (statusEl) statusEl.textContent = 'Could not copy (browser blocked).';
+                });
+                });
+            }
+
+            wireCopy('copy-company-domain-template-btn', 'company-domain-template', 'copy-company-domain-template-status');
+            wireCopy('copy-legacy-company-domain-template-btn', 'legacy-company-domain-template', 'copy-legacy-company-domain-template-status');
+            wireCopy('copy-legacy-company-names-btn', 'legacy-company-names', 'copy-legacy-company-names-status');
+        });
+    })();
+</script>
+</body>
+</html>

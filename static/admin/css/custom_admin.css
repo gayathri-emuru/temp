@@ -1,0 +1,168 @@
+/* =========================================================
+   Global admin sticky table headers
+   ========================================================= */
+
+/* Make the normal Django changelist result area scrollable */
+.change-list .results {
+    overflow: auto !important;
+    max-height: calc(100vh - 260px);
+    border: 1px solid #3a3a3a;
+}
+
+/* Sticky headers for standard admin changelist tables */
+.change-list .results table thead th,
+.change-list #result_list thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 50 !important;
+    background: #1f1f1f !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 0 #444;
+}
+
+/* Header links stay readable */
+.change-list .results table thead th a,
+.change-list #result_list thead th a {
+    color: #ffffff !important;
+}
+
+/* Also make the first column sticky if you want checkbox/id visible */
+.change-list .results table th:first-child,
+.change-list .results table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 30;
+    background: #111 !important;
+}
+
+/* First header cell should sit above the rest */
+.change-list .results table thead th:first-child {
+    z-index: 60 !important;
+    background: #1f1f1f !important;
+}
+
+/* =========================================================
+   Custom admin tables like your email stats page
+   ========================================================= */
+div[style*="overflow-x: auto"] {
+    overflow: auto !important;
+    max-height: calc(100vh - 260px);
+    border: 1px solid #3a3a3a;
+}
+
+table.adminlist thead th,
+.module table thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 50 !important;
+    background: #1f1f1f !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 0 #444;
+}
+
+table.adminlist thead th a,
+.module table thead th a {
+    color: #ffffff !important;
+}
+
+/* First column sticky for custom tables too */
+table.adminlist th:first-child,
+table.adminlist td:first-child,
+.module table th:first-child,
+.module table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 30;
+    background: #111 !important;
+}
+
+table.adminlist thead th:first-child,
+.module table thead th:first-child {
+    z-index: 60 !important;
+    background: #1f1f1f !important;
+}
+
+/* =========================================================
+   JobPosting admin usability (bigger buttons, fewer misclicks)
+   ========================================================= */
+.app-core.model-jobposting.change-list #result_list td {
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.app-core.model-jobposting.change-list #result_list td.field-job_link,
+.app-core.model-jobposting.change-list #result_list td.field-people_search_links {
+    min-width: 160px;
+}
+
+.app-core.model-jobposting.change-list #result_list tbody tr:nth-child(even) td,
+.app-core.model-jobposting.change-list #result_list tbody tr:nth-child(even) th {
+    background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.app-core.model-jobposting.change-list #result_list tbody tr td,
+.app-core.model-jobposting.change-list #result_list tbody tr th {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.ce-admin-btn {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 999px;
+    text-decoration: none !important;
+    font-weight: 600;
+    line-height: 1.2;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff !important;
+}
+
+.ce-admin-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.ce-admin-btn-job {
+    border-color: rgba(59, 130, 246, 0.6);
+    background: rgba(59, 130, 246, 0.18);
+}
+
+.ce-admin-btn-people {
+    border-color: rgba(16, 185, 129, 0.55);
+    background: rgba(16, 185, 129, 0.14);
+}
+
+.ce-admin-link-stack a {
+    margin-bottom: 6px;
+}
+
+/* =========================================================
+   JobPosting date picker: icon-only compact control
+   ========================================================= */
+.ce-jobposting-datebar {
+    margin: 10px 0 0 0;
+}
+
+.ce-jobposting-datebar-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* Make the date input look like a small calendar icon button (Chrome/Safari). */
+.app-core.model-jobposting.change-list input.ce-date-icon-only {
+    width: 44px;
+    min-width: 44px;
+    padding: 2px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.app-core.model-jobposting.change-list input.ce-date-icon-only::-webkit-datetime-edit {
+    display: none;
+}
+
+.app-core.model-jobposting.change-list input.ce-date-icon-only::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.9;
+}

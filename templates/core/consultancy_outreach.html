@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Consultancy Outreach</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --panel: #ffffff;
+            --line: #d9e0ea;
+            --text: #1f2937;
+            --muted: #667085;
+            --blue: #1f6feb;
+            --blue-dark: #1757b8;
+            --green: #157347;
+            --red: #b42318;
+            --amber: #9a6700;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 22px; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+        h1 { margin: 0 0 6px; font-size: 26px; }
+        h2 { margin: 0 0 12px; font-size: 18px; }
+        label { display:block; margin: 10px 0 4px; font-weight: 700; }
+        textarea, input[type="text"], input[type="number"] { width: 100%; border: 1px solid #b8c2d1; border-radius: 6px; padding: 9px; font-size: 14px; }
+        textarea { resize: vertical; font-family: Arial, sans-serif; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid var(--line); padding: 8px; font-size: 13px; vertical-align: top; }
+        th { background: #eef2f7; text-align: left; color: #344054; }
+        pre { background: #111; color: #eaeaea; padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+        .topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+        .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .subtle { color: var(--muted); font-size: 13px; }
+        .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+        button, .button-link {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-height: 38px; padding: 8px 12px; border-radius: 6px; border: 0;
+            background: var(--blue); color: white; text-decoration: none; cursor: pointer; font-size: 14px;
+        }
+        button:hover, .button-link:hover { background: var(--blue-dark); }
+        button.secondary { background: #334155; }
+        button.warn { background: var(--amber); }
+        .messages { margin: 0 0 16px; }
+        .message { padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; background: #e7f6ee; border: 1px solid #a7d7bd; }
+        .message.error { background: #fee4e2; border-color: #f5a7a0; }
+        .ok { color: var(--green); font-weight: 700; }
+        .bad { color: var(--red); font-weight: 700; }
+        .pill { display: inline-block; padding: 3px 7px; border-radius: 999px; background: #eef2ff; color: #3441a3; font-size: 12px; font-weight: 700; }
+        .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 12px; align-items: end; }
+        @media (max-width: 900px) { .topline, .form-grid { display:block; } .actions { margin-top: 10px; } }
+    </style>
+</head>
+<body>
+    <div class="topline">
+        <div>
+            <h1>Consultancy Outreach</h1>
+            <div class="subtle">Paste company JSON, preview recipients, then send one reviewed message with the configured resume attached.</div>
+        </div>
+        <div class="actions">
+            <a class="button-link" href="{% url 'pipeline_dashboard' %}">Pipeline</a>
+            <a class="button-link" href="{% url 'manual_bulk_email' %}">Manual Bulk Email</a>
+            <a class="button-link" href="{% url 'manual_dice_flow' %}">Dice Flow</a>
+            <a class="button-link" href="{% url 'send_control_dashboard' %}">Send Control</a>
+            <a class="button-link" href="/admin/core/sentemaillog/">Email Logs</a>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+            <div class="message {% if message.tags == 'error' %}error{% endif %}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="panel">
+        <h2>Safety State</h2>
+        <p class="subtle">
+            Effective sending:
+            <strong>{% if email_sending_state.effective_enabled %}<span class="ok">ON</span>{% else %}<span class="bad">OFF</span>{% endif %}</strong>
+            | EMAIL_SENDING_ENABLED: <strong>{% if email_sending_state.env_enabled %}ON{% else %}OFF{% endif %}</strong>
+            | pause switch: <strong>{% if email_sending_state.paused %}ON{% else %}OFF{% endif %}</strong>
+        </p>
+        <p class="subtle">Duplicate-send protection skips any address with a prior successful or pending real initial email.</p>
+    </div>
+
+    <div class="panel">
+        <h2>Message + Recipients</h2>
+        <form method="post" action="{% url 'consultancy_outreach' %}">
+            {% csrf_token %}
+            {{ form.consultancy_json.label_tag }}
+            {{ form.consultancy_json }}
+
+            {{ form.subject.label_tag }}
+            {{ form.subject }}
+
+            {{ form.body.label_tag }}
+            {{ form.body }}
+            <div class="subtle">Supported placeholders: <code>{company}</code>, <code>{website}</code>, <code>{email}</code>, <code>{name}</code>.</div>
+
+            <div class="form-grid">
+                <div>
+                    {{ form.delay_seconds.label_tag }}
+                    {{ form.delay_seconds }}
+                </div>
+                <label>{{ form.confirm_send }} Confirm real send</label>
+            </div>
+
+            <div class="actions">
+                <button type="submit" name="action" value="preview" class="secondary">Preview Recipients</button>
+                <button class="warn" type="submit" name="action" value="send"
+                        onclick="return confirm('Send this reviewed consultancy outreach email with resume attachment using active sender rotation?');">
+                    Send Reviewed Outreach
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if preview %}
+    <div class="panel">
+        <h2>Preview</h2>
+        <table>
+            <tr><th>Companies input</th><td>{{ preview.totals.companies_input }}</td></tr>
+            <tr><th>Valid recipients</th><td><span class="ok">{{ preview.totals.valid_recipients }}</span></td></tr>
+            <tr><th>Invalid / duplicate rows</th><td>{{ preview.totals.invalid_rows }}</td></tr>
+        </table>
+        <h3>Recipients</h3>
+        <table>
+            <thead><tr><th>Company</th><th>Email</th><th>Website</th></tr></thead>
+            <tbody>
+            {% for row in preview.rows %}
+                <tr>
+                    <td>{{ row.company }}</td>
+                    <td>{{ row.email }}</td>
+                    <td>{% if row.website %}<a href="{{ row.website }}" target="_blank" rel="noopener noreferrer">{{ row.website }}</a>{% else %}-{% endif %}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="3">No valid recipients.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% if preview.invalid_rows %}
+            <h3>Invalid / Duplicate Rows</h3>
+            <table>
+                <thead><tr><th>Company</th><th>Email</th><th>Reason</th></tr></thead>
+                <tbody>
+                {% for row in preview.invalid_rows %}
+                    <tr>
+                        <td>{{ row.company|default:"-" }}</td>
+                        <td>{{ row.email|default:"-" }}</td>
+                        <td>{{ row.reason }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if result %}
+    <div class="panel">
+        <h2>Latest Send Result</h2>
+        {% if result.ok == False %}
+            <p class="bad">{{ result.error }}</p>
+        {% else %}
+            <table>
+                <tr><th>Send run</th><td>{% if result.send_run_id %}<a href="/admin/core/sendrun/{{ result.send_run_id }}/change/">SendRun #{{ result.send_run_id }}</a>{% else %}-{% endif %}</td></tr>
+                <tr><th>Valid input emails</th><td>{{ result.totals.input_valid_emails }}</td></tr>
+                <tr><th>Attempted</th><td>{{ result.totals.emails_attempted }}</td></tr>
+                <tr><th>Sent</th><td><span class="ok">{{ result.totals.emails_sent }}</span></td></tr>
+                <tr><th>Failed</th><td><span class="bad">{{ result.totals.emails_failed }}</span></td></tr>
+                <tr><th>Skipped already sent/pending</th><td>{{ result.totals.skipped_already_sent_or_pending }}</td></tr>
+                <tr><th>Run log</th><td><code>{{ result.run_log_path }}</code></td></tr>
+            </table>
+
+            <h3>Recipient Rows</h3>
+            <table>
+                <thead><tr><th>Company</th><th>Email</th><th>Status</th><th>Sender</th><th>Log</th><th>Detail</th></tr></thead>
+                <tbody>
+                {% for row in result.rows %}
+                    <tr>
+                        <td>{{ row.company|default:row.name }}</td>
+                        <td>{{ row.email }}</td>
+                        <td><span class="pill">{{ row.status }}</span></td>
+                        <td>{{ row.sender|default:"-" }}</td>
+                        <td>{% if row.log_id %}<a href="/admin/core/sentemaillog/{{ row.log_id }}/change/">Log {{ row.log_id }}</a>{% else %}-{% endif %}</td>
+                        <td>{{ row.detail|default:"" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6">No recipient rows.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+        <details>
+            <summary>Full raw result</summary>
+            <pre>{{ result }}</pre>
+        </details>
+    </div>
+    {% endif %}
+</body>
+</html>

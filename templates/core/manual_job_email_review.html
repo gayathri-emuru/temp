@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manual Job Email Review</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 22px; background: #f6f7fb; color: #18202f; }
+        a { color: #075fc7; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .topbar, .job { background: #fff; border: 1px solid #d9dee8; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .muted { color: #657083; }
+        .ok { color: #147a3d; font-weight: 700; }
+        .bad { color: #b42318; font-weight: 700; }
+        .pill { display: inline-block; border: 1px solid #cfd6e4; border-radius: 999px; padding: 2px 8px; margin-right: 6px; font-size: 12px; }
+        .links a { margin-right: 12px; }
+        .job-main { display: grid; grid-template-columns: minmax(360px, 0.8fr) minmax(460px, 1fr); gap: 18px; align-items: start; margin-top: 14px; }
+        .email-preview { border: 1px solid #d9dee8; border-radius: 8px; padding: 14px; background: #fbfcff; }
+        .email-subject { border-bottom: 1px solid #e3e7ef; padding-bottom: 10px; margin-bottom: 12px; line-height: 1.45; }
+        .email-body { white-space: pre-wrap; word-break: break-word; line-height: 1.55; font-size: 15px; }
+        button { border: 0; border-radius: 6px; padding: 8px 12px; cursor: pointer; background: #075fc7; color: #fff; }
+        button.safe { background: #147a3d; }
+        button.secondary { background: #334155; }
+        button.warn { background: #9a6700; }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+        input[type="number"] { width: 100px; border: 1px solid #b8c2d1; border-radius: 6px; padding: 8px; }
+        input[type="text"], input[type="email"] { border: 1px solid #b8c2d1; border-radius: 6px; padding: 8px; min-width: 220px; }
+        .inline-edit { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 10px 0; padding: 10px; border: 1px solid #e3e7ef; border-radius: 8px; background: #fbfcff; }
+        .inline-edit label { display: grid; gap: 4px; font-size: 12px; color: #657083; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border-bottom: 1px solid #e3e7ef; padding: 8px; vertical-align: top; text-align: left; }
+        .message { padding: 10px 12px; border-radius: 6px; margin: 10px 0; background: #e7f6ee; border: 1px solid #a7d7bd; }
+        .message.error { background: #fee4e2; border-color: #f5a7a0; }
+        .source-text { margin: 10px 0; border: 1px solid #e3e7ef; border-radius: 8px; background: #fbfcff; padding: 10px; }
+        .source-text-title { margin: 0 0 8px; font-weight: 700; color: #334155; }
+        pre { white-space: pre-wrap; word-break: break-word; background: #f9fafc; border: 1px solid #e3e7ef; border-radius: 6px; padding: 10px; }
+        @media (max-width: 1000px) { .job-main { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <h1 style="margin:0 0 8px;">Manual Job Email Review</h1>
+        <div class="muted">
+            Token: <strong>{{ token }}</strong>
+            | Jobs: <strong>{{ totals.jobs }}</strong>
+            | Ready: <strong>{{ totals.ready }}</strong>
+            | Sending:
+            {% if email_sending_state.effective_enabled %}<span class="ok">ON</span>{% else %}<span class="bad">OFF</span>{% endif %}
+        </div>
+        <div class="links" style="margin-top:10px;">
+            <a href="{% url 'manual_bulk_email' %}">Manual Bulk Email</a>
+            <a href="{% url 'send_control_dashboard' %}">Send Control</a>
+            <a href="{% url 'inbox_monitor_dashboard' %}">Inbox Monitor</a>
+            <form method="post" action="{% url 'inbox_monitor_scan_now' %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit">Scan Inboxes</button>
+            </form>
+            <a href="/admin/core/sentemaillog/">Email Logs</a>
+        </div>
+        {% if messages %}
+            {% for message in messages %}
+                <div class="message {% if message.tags == 'error' %}error{% endif %}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        <p class="muted">
+            Review each generated email below. Use admin links to edit subject/body or the job text, then send only the checked rows.
+            The send step attaches the configured resume. Recipients with a prior real initial or pending email are blocked from sending.
+        </p>
+    </div>
+
+    <div class="topbar">
+        <h2 style="margin:0 0 8px;">Draft Generation</h2>
+        <p class="muted" style="margin:0;">
+            Generate only missing drafts when you want to preserve edits. Regenerate all drafts when the prompt changed and you want a fresh pass.
+            Claude bulk runs are paced so the batch does not slam the per-minute token limit.
+        </p>
+        <div class="actions">
+            <form method="post" action="{% url 'manual_job_email_generate' token %}"
+                  onsubmit="return confirm('Generate drafts only for rows missing subject/body? This uses the selected email AI model and does not send emails.');">
+                {% csrf_token %}
+                <input type="hidden" name="generation_scope" value="missing">
+                <button type="submit">Generate Missing Drafts</button>
+            </form>
+            <form method="post" action="{% url 'manual_job_email_generate' token %}"
+                  onsubmit="return confirm('Regenerate and replace drafts for every row in this review batch? This does not send emails.');">
+                {% csrf_token %}
+                <input type="hidden" name="generation_scope" value="all">
+                <button class="warn" type="submit">Regenerate All Drafts</button>
+            </form>
+        </div>
+    </div>
+
+    {% if generate_result %}
+    <div class="topbar">
+        <h2 style="margin:0 0 8px;">Latest Draft Generation Result</h2>
+        {% if generate_result.ok == False %}
+            <p class="bad">{{ generate_result.error }}</p>
+        {% else %}
+            <table>
+                <tr><th>Provider</th><td>{{ generate_result.totals.provider|default:"-" }}</td></tr>
+                <tr><th>Model</th><td>{{ generate_result.totals.model|default:"-" }}</td></tr>
+                <tr><th>Jobs found</th><td>{{ generate_result.totals.jobs_found }}</td></tr>
+                <tr><th>Jobs generated</th><td>{{ generate_result.totals.generated }}</td></tr>
+                <tr><th>Skipped existing</th><td>{{ generate_result.totals.skipped_existing }}</td></tr>
+                <tr><th>Errors</th><td>{{ generate_result.totals.generation_errors }}</td></tr>
+                <tr><th>Run log</th><td><code>{{ generate_result.run_log_path }}</code></td></tr>
+            </table>
+            <details>
+                <summary>Rows</summary>
+                <pre>{{ generate_result.rows }}</pre>
+            </details>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if send_result %}
+    <div class="topbar">
+        <h2 style="margin:0 0 8px;">Latest Send Result</h2>
+        {% if send_result.ok == False %}
+            <p class="bad">{{ send_result.error }}</p>
+        {% else %}
+            <table>
+                <tr><th>Send run</th><td><a href="/admin/core/sendrun/{{ send_result.send_run_id }}/change/">SendRun #{{ send_result.send_run_id }}</a></td></tr>
+                <tr><th>Attempted</th><td>{{ send_result.totals.emails_attempted }}</td></tr>
+                <tr><th>Sent</th><td><span class="ok">{{ send_result.totals.emails_sent }}</span></td></tr>
+                <tr><th>Failed</th><td><span class="bad">{{ send_result.totals.emails_failed }}</span></td></tr>
+                <tr><th>Skipped already sent/pending</th><td>{{ send_result.totals.skipped_already_sent_or_pending }}</td></tr>
+                <tr><th>Run log</th><td><code>{{ send_result.run_log_path }}</code></td></tr>
+            </table>
+            <details>
+                <summary>Rows</summary>
+                <pre>{{ send_result.rows }}</pre>
+            </details>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <form id="manual-send-form" method="post" action="{% url 'manual_job_email_send' token %}"
+          onsubmit="return confirm('Send REAL emails for the checked rows? Resume attachment will be applied before sending.');">
+        {% csrf_token %}
+        <div class="topbar">
+            <label>
+                Delay seconds:
+                <input type="number" name="delay_seconds" min="0" value="300">
+            </label>
+            <button class="safe" type="submit" {% if not email_sending_state.env_enabled %}disabled{% endif %}>Send Checked Emails</button>
+        </div>
+    </form>
+
+        {% for row in rows %}
+        <div class="job">
+            <h2 style="margin:0 0 6px;">Job {{ row.job.id }} - {{ row.name }} - {{ row.email }}</h2>
+            <div class="muted">
+                Ready:
+                {% if row.ready %}<span class="ok">YES</span>{% else %}<span class="bad">NO</span>{% endif %}
+                | Prior real initial or pending:
+                {% if row.already_real_sent_or_pending %}<span class="bad">YES</span>{% else %}<span class="ok">NO</span>{% endif %}
+            </div>
+            <div class="links" style="margin-top:8px;">
+                <a href="/admin/core/jobposting/{{ row.job.id }}/change/">Edit job</a>
+                {% if row.generated %}<a href="/admin/core/generatedemail/{{ row.generated.id }}/change/">Edit generated email</a>{% endif %}
+                {% if row.target %}<a href="/admin/core/jobrecruitertarget/{{ row.target.id }}/change/">Edit target</a>{% endif %}
+            </div>
+            <div class="job-main">
+                <div>
+                    <label>
+                        <input form="manual-send-form" type="checkbox" name="job_id" value="{{ row.job.id }}"
+                               {% if row.ready %}checked{% else %}disabled{% endif %}>
+                        Send this row
+                    </label>
+                    <p class="muted"><span class="pill">Job text/title</span> {{ row.job.title }}</p>
+                    <p class="muted links">
+                        {% if row.source_linkedin_post_url %}<a href="{{ row.source_linkedin_post_url }}" target="_blank" rel="noopener noreferrer">LinkedIn post</a>{% endif %}
+                        {% if row.source_job_url %}<a href="{{ row.source_job_url }}" target="_blank" rel="noopener noreferrer">Job link</a>{% endif %}
+                        {% if row.poster_linkedin_url %}<a href="{{ row.poster_linkedin_url }}" target="_blank" rel="noopener noreferrer">Poster profile</a>{% endif %}
+                    </p>
+                    {% if row.source_post_text or row.manual_notes %}
+                    <div class="source-text">
+                        <div class="source-text-title">Post Text</div>
+                        {% if row.manual_notes %}
+                            <p class="muted"><span class="pill">Manual notes</span></p>
+                            <pre>{{ row.manual_notes }}</pre>
+                        {% endif %}
+                        {% if row.source_post_text %}
+                            <p class="muted"><span class="pill">LinkedIn post/context</span></p>
+                            <pre>{{ row.source_post_text }}</pre>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <form class="inline-edit" method="post" action="{% url 'manual_job_email_recipient_update' token %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="job_id" value="{{ row.job.id }}">
+                        <label>
+                            Name
+                            <input type="text" name="recipient_name" value="{{ row.name }}" required>
+                        </label>
+                        <label>
+                            Email
+                            <input type="email" name="recipient_email" value="{{ row.email }}" required>
+                        </label>
+                        <button class="secondary" type="submit">Update Recipient</button>
+                    </form>
+                    {% if row.already_real_sent_or_pending %}
+                        <p class="bad">This recipient already has a real initial or pending email. Sending is disabled for this row.</p>
+                    {% endif %}
+                    {% if not row.ready %}
+                        <p class="bad">This row is missing generated email content, a selected target, or is blocked by prior contact.</p>
+                    {% endif %}
+                </div>
+                <div class="email-preview">
+                    <div class="email-subject"><span class="pill">Subject</span> <strong>{{ row.subject }}</strong></div>
+                    <div class="email-body">{{ row.final_body }}</div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+            <div class="topbar"><p class="bad">No manual generated jobs found for this token.</p></div>
+        {% endfor %}
+</body>
+</html>

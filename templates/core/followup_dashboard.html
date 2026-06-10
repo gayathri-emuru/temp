@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Follow-Up Dashboard</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --panel: #ffffff;
+            --line: #d8e0ec;
+            --text: #172033;
+            --muted: #667085;
+            --blue: #235bd8;
+            --blue-dark: #1747a6;
+            --green: #147a4b;
+            --red: #b42318;
+            --amber: #9a6700;
+            --ink: #0f172a;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 22px; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+        h1 { margin: 0 0 6px; font-size: 30px; }
+        h2 { margin: 0 0 12px; font-size: 18px; }
+        h3 { margin: 0 0 8px; font-size: 15px; }
+        a { color: var(--blue); }
+        .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+        .subtle { color: var(--muted); font-size: 13px; line-height: 1.45; }
+        .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        button, .button-link {
+            border: 0; border-radius: 6px; min-height: 38px; padding: 8px 12px;
+            background: var(--blue); color: white; text-decoration: none; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center; font-size: 14px;
+        }
+        button:hover, .button-link:hover { background: var(--blue-dark); }
+        button.secondary, .button-link.secondary { background: #344054; }
+        button.safe { background: var(--green); }
+        button.danger { background: var(--red); }
+        button:disabled { background: #98a2b3; cursor: not-allowed; }
+        input[type="number"] { min-height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 86px; font: inherit; }
+        .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .metric-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .metric { border: 1px solid var(--line); border-radius: 6px; padding: 12px; background: #fbfcff; min-height: 76px; }
+        .metric .value { display: block; font-size: 26px; line-height: 1.1; font-weight: 700; color: var(--ink); }
+        .metric .label { display: block; color: var(--muted); font-size: 12px; margin-top: 7px; }
+        .email-preview { white-space: pre-wrap; word-break: break-word; line-height: 1.5; background: #fbfcff; border: 1px solid var(--line); border-radius: 6px; padding: 12px; max-height: 360px; overflow: auto; }
+        .subject-row { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; align-items: start; margin-bottom: 10px; }
+        .subject-label { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .subject-value { font-weight: 700; color: var(--ink); word-break: break-word; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid var(--line); padding: 8px; font-size: 13px; vertical-align: top; text-align: left; }
+        th { background: #eef2f7; color: #344054; }
+        tr.selected-row { background: #f3fbf7; }
+        .company-name { font-weight: 800; color: var(--ink); word-break: break-word; }
+        .pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 8px; font-size: 12px; font-weight: 700; background: #eef2ff; color: #3441a3; margin: 0 4px 4px 0; }
+        .pill.green { background: #e7f6ee; color: var(--green); }
+        .pill.amber { background: #fff4d6; color: var(--amber); }
+        .pill.red { background: #fee4e2; color: var(--red); }
+        details { margin-top: 8px; }
+        summary { cursor: pointer; color: var(--blue); font-size: 13px; font-weight: 700; }
+        .people-list { display: grid; gap: 6px; margin-top: 8px; }
+        .person-row { border: 1px solid #edf1f7; border-radius: 6px; background: #fff; padding: 8px; }
+        .person-main { font-weight: 700; color: var(--ink); word-break: break-word; }
+        .person-meta { color: var(--muted); font-size: 12px; margin-top: 4px; line-height: 1.4; word-break: break-word; }
+        .messages { margin-bottom: 16px; }
+        .message { padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; background: #e7f6ee; border: 1px solid #a7d7bd; }
+        .message.error { background: #fee4e2; border-color: #f5a7a0; }
+        .empty { border: 1px dashed var(--line); border-radius: 8px; padding: 28px; text-align: center; color: var(--muted); background: #fbfcff; }
+        .sticky-actions { position: sticky; bottom: 0; background: rgba(245, 247, 251, 0.96); border-top: 1px solid var(--line); padding: 12px 0 0; margin-top: 12px; }
+        @media (max-width: 1100px) {
+            .topbar { flex-direction: column; }
+            .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            table, thead, tbody, th, td, tr { display: block; }
+            thead { display: none; }
+            tr { border: 1px solid var(--line); margin-bottom: 10px; background: white; }
+            td { border: 0; border-top: 1px solid #edf1f7; }
+            td:first-child { border-top: 0; }
+        }
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <div>
+        <h1>Follow-Up Dashboard</h1>
+        <div class="subtle">
+            Company-level follow-ups only. Select how many safe contacts to follow up with per company.
+        </div>
+    </div>
+    <div class="actions">
+        <a class="button-link secondary" href="{% url 'send_control_dashboard' %}">Send Control</a>
+        <a class="button-link secondary" href="{% url 'inbox_monitor_dashboard' %}">Inbox Monitor</a>
+        <a class="button-link secondary" href="{% url 'pipeline_dashboard' %}">Pipeline</a>
+        <form method="post" action="{% url 'inbox_monitor_scan_now' %}" style="margin:0;">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'followup_dashboard' %}">
+            <button class="secondary" type="submit">Scan Inboxes</button>
+        </form>
+    </div>
+</div>
+
+{% if messages %}
+<div class="messages">
+    {% for message in messages %}
+        <div class="message {% if message.tags == 'error' %}error{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if send_result %}
+<div class="panel">
+    <h2>Latest Follow-Up Run</h2>
+    {% if send_result.error %}
+        <div class="subtle">{{ send_result.error }}</div>
+    {% else %}
+        <div class="actions">
+            <span class="pill green">sent {{ send_result.totals.emails_sent|default:0 }}</span>
+            <span class="pill amber">selected {{ send_result.totals.selected|default:0 }}</span>
+            <span class="pill red">failed {{ send_result.totals.emails_failed|default:0 }}</span>
+            <span class="pill">run #{{ send_result.send_run_id }}</span>
+        </div>
+        <div class="subtle" style="margin-top:8px;">{{ send_result.run_log_path }}</div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="metric-grid">
+    <div class="metric"><span class="value">{{ totals.companies_due }}</span><span class="label">Companies Due</span></div>
+    <div class="metric"><span class="value">{{ totals.people_due }}</span><span class="label">People Due</span></div>
+    <div class="metric"><span class="value">{{ totals.replied }}</span><span class="label">Skipped Replies</span></div>
+    <div class="metric"><span class="value">{{ totals.bounced_or_suppressed }}</span><span class="label">Bounced/Suppressed</span></div>
+    <div class="metric"><span class="value">{{ totals.too_soon }}</span><span class="label">Too Soon</span></div>
+    <div class="metric"><span class="value">{{ totals.max_followups_sent }}</span><span class="label">Max Followed</span></div>
+</div>
+
+<div class="panel">
+    <h2>Follow-Up Email</h2>
+    <div class="subject-row">
+        <div class="subject-label">Subject</div>
+        <div class="subject-value">{{ subject }}</div>
+    </div>
+    <div class="email-preview">{{ preview_body }}</div>
+    <div class="subtle" style="margin-top:8px;">
+        Timing: first follow-up after {{ settings.min_days_since_initial }} day{{ settings.min_days_since_initial|pluralize }},
+        max {{ settings.max_followups_per_person }} follow-up{{ settings.max_followups_per_person|pluralize }} per person.
+        {% if preview_is_real_candidate %}Preview uses the first due contact below.{% else %}Preview is a sample because no contact is due right now.{% endif %}
+    </div>
+</div>
+
+<form method="post" action="{% url 'followup_send_selected_view' %}">
+    {% csrf_token %}
+    <div class="panel">
+        <div class="actions" style="justify-content:space-between;">
+            <div>
+                <h2 style="margin-bottom:4px;">Companies</h2>
+                <div class="subtle">Choose a number for each company. The system sends to the highest-priority safe contacts in that company.</div>
+            </div>
+            <div class="actions">
+                <label class="subtle" for="maxTotal"><strong>Max total</strong></label>
+                <input id="maxTotal" type="number" name="max_total_followups" min="1" max="500" value="{{ settings.max_total_per_run }}">
+                <label class="subtle" for="delaySeconds"><strong>Delay seconds</strong></label>
+                <input id="delaySeconds" type="number" name="delay_seconds" min="0" max="3600" value="5">
+                <button type="button" class="secondary" id="selectOneEach">Select 1 Each</button>
+                <button type="button" class="secondary" id="clearCounts">Clear</button>
+            </div>
+        </div>
+
+        {% if rows %}
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:110px;">Send</th>
+                        <th>Company</th>
+                        <th style="width:130px;">Due</th>
+                        <th>People</th>
+                        <th style="width:170px;">Oldest Initial</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in rows %}
+                    <tr>
+                        <td>
+                            <input class="count-input" type="number" name="followup_count__{{ row.key }}" min="0" max="{{ row.due_count }}" value="0" data-max="{{ row.due_count }}">
+                        </td>
+                        <td>
+                            <div class="company-name">{{ row.company_name }}</div>
+                            <div class="subtle">{{ row.sample_people }}</div>
+                        </td>
+                        <td><span class="pill green">{{ row.due_count }} ready</span></td>
+                        <td>
+                            <details>
+                                <summary>Show contacts</summary>
+                                <div class="people-list">
+                                {% for candidate in row.candidates %}
+                                    <div class="person-row">
+                                        <div class="person-main">{{ candidate.recipient_name }} | {{ candidate.email }}</div>
+                                        <div class="person-meta">
+                                            {{ candidate.job_title }}{% if candidate.title %} | {{ candidate.title }}{% endif %}
+                                            <br>
+                                            Initial sent {{ candidate.sent_at_display }} | {{ candidate.days_since_initial }} day{{ candidate.days_since_initial|pluralize }} ago | {{ candidate.source }}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                                </div>
+                            </details>
+                        </td>
+                        <td>{{ row.oldest_sent_at_display }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="sticky-actions">
+                <div class="actions">
+                    <button class="safe" type="submit" id="sendButton" disabled>Send Selected Follow-Ups</button>
+                    <span class="subtle"><strong id="selectedTotal">0</strong> selected</span>
+                </div>
+            </div>
+        {% else %}
+            <div class="empty">No safe company follow-ups are due right now.</div>
+        {% endif %}
+    </div>
+</form>
+
+<script>
+    const inputs = Array.from(document.querySelectorAll(".count-input"));
+    const selectedTotal = document.getElementById("selectedTotal");
+    const sendButton = document.getElementById("sendButton");
+    const selectOneEach = document.getElementById("selectOneEach");
+    const clearCounts = document.getElementById("clearCounts");
+
+    function clampInput(input) {
+        const max = Number(input.dataset.max || input.max || 0);
+        let value = Number(input.value || 0);
+        if (!Number.isFinite(value) || value < 0) value = 0;
+        if (value > max) value = max;
+        input.value = String(value);
+        const row = input.closest("tr");
+        if (row) row.classList.toggle("selected-row", value > 0);
+    }
+
+    function updateSelectedTotal() {
+        let total = 0;
+        inputs.forEach(input => {
+            clampInput(input);
+            total += Number(input.value || 0);
+        });
+        if (selectedTotal) selectedTotal.textContent = String(total);
+        if (sendButton) sendButton.disabled = total <= 0;
+    }
+
+    inputs.forEach(input => input.addEventListener("input", updateSelectedTotal));
+    if (selectOneEach) {
+        selectOneEach.addEventListener("click", () => {
+            inputs.forEach(input => {
+                input.value = input.dataset.max && Number(input.dataset.max) > 0 ? "1" : "0";
+            });
+            updateSelectedTotal();
+        });
+    }
+    if (clearCounts) {
+        clearCounts.addEventListener("click", () => {
+            inputs.forEach(input => { input.value = "0"; });
+            updateSelectedTotal();
+        });
+    }
+    updateSelectedTotal();
+</script>
+</body>
+</html>
