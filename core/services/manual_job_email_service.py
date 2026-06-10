@@ -1011,7 +1011,7 @@ def send_manual_job_email_batch(*, token: str, job_ids: list[int], delay_seconds
                 send_type=SentEmailLog.SendType.REAL,
                 message_type=SentEmailLog.MessageType.INITIAL,
                 status=SentEmailLog.SendStatus.PENDING,
-                bypass_global_dedupe=True,
+                bypass_global_dedupe=False,
             )
         except IntegrityError as exc:
             totals["skipped_already_sent_or_pending"] += 1

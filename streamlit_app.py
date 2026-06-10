@@ -725,6 +725,12 @@ def _render_review_batch(token: str) -> None:
     if st.button("Send Checked Emails", type="primary", disabled=not selected_job_ids or not confirm_send):
         try:
             for job_id in selected_job_ids:
+                update_manual_job_email_recipient(
+                    token=token,
+                    job_id=job_id,
+                    name=st.session_state.get(f"name_{job_id}", ""),
+                    email=st.session_state.get(f"email_{job_id}", ""),
+                )
                 _save_generated_email(
                     job_id,
                     st.session_state.get(f"subject_{job_id}", ""),
@@ -733,7 +739,13 @@ def _render_review_batch(token: str) -> None:
             result = send_manual_job_email_batch(token=token, job_ids=selected_job_ids, delay_seconds=int(send_delay))
             sent = result.get("totals", {}).get("emails_sent", 0)
             failed = result.get("totals", {}).get("emails_failed", 0)
-            _success(f"Send finished: {sent} sent, {failed} failed.")
+            sent_to = ", ".join(
+                safe_str(row.get("email"))
+                for row in result.get("rows", [])
+                if safe_str(row.get("status")) == "sent" and safe_str(row.get("email"))
+            )
+            suffix = f" Sent to: {sent_to}." if sent_to else ""
+            _success(f"Send finished: {sent} sent, {failed} failed.{suffix}")
             st.session_state["latest_send_result"] = result
             st.rerun()
         except Exception as exc:
